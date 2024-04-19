@@ -137,10 +137,12 @@ to={`${ROUTES.PRODUCTS}`}
 
           <p> {product.Description}</p>
           <div>
-          <p style={{ color: product.Stock === "0" ? 'red' : 'green',display: 'inline-block' }}>
-          <p style={{color:'black',display: 'inline-block', marginRight: '6px'}} > Disponibilté : </p>      
-                 {product.Stock === "0" ? "Épuisé" : "En stock"}
-          </p></div>
+          <p style={{ display: 'inline-block', marginRight: '6px' }}>
+  Disponibilité :
+  <span style={{ color: product.Stock === "En stock" ? 'green' : 'red' }}>
+    {product.Stock}
+  </span>
+</p></div>
 
           <div style={{ backgroundColor:'#041172',width:'150px',position:'absolute',marginTop: '-330px',right:'40px'}}>
             <img src={product.CompanyLogo} alt={product.Company} style={{ maxWidth: '150px' }} />

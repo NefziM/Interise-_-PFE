@@ -5,8 +5,10 @@ import { Input } from '@components';
 import { DashboardComponents } from '@components';
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
+import * as XLSX from "xlsx"; 
 
-interface newProduct {
+
+interface DeletedProduct {
   Ref: string;
   Designation: string;
   Price: string;
@@ -19,14 +21,16 @@ interface newProduct {
   supprime: boolean;
   DiscountAmount:string;
   BrandImage:string;
+  Category :string;
+  Subcategory:string;
 
 }
 
 const DeletedProducts: React.FC = () => {
-  const [initialProducts, setInitialProducts] = useState<newProduct[]>([]);
+  const [initialProducts, setInitialProducts] = useState<DeletedProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
-  const [products, setProducts] = useState<newProduct[]>([]);
+  const [products, setProducts] = useState<DeletedProduct[]>([]);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(50);
   const [fetched, setFetched] = useState<number>(0);
@@ -55,7 +59,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
         },
       })
       .then((response) => {
-        const data: newProduct[] = response.data;
+        const data: DeletedProduct[] = response.data;
 
         console.log('All products:', data);
 
@@ -76,7 +80,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
         setProducts(initialProducts);
       } else {
         const filteredProducts = initialProducts.filter(
-          (product: newProduct) =>
+          (product: DeletedProduct) =>
             product.Ref.toLowerCase().includes(value.toLowerCase()) ||
             product.Designation.toLowerCase().includes(value.toLowerCase()) ||
             product.Stock.toLowerCase().includes(value.toLowerCase()) ||
@@ -118,7 +122,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
     const minPriceValue = parseFloat(min.replace(/\s/g, '').replace(',', '.'));
     const maxPriceValue = parseFloat(max.replace(/\s/g, '').replace(',', '.'));
 
-    const filteredProducts = initialProducts.filter((product: newProduct) => {
+    const filteredProducts = initialProducts.filter((product: DeletedProduct) => {
       const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
 
       if (filterType === 'min') {
@@ -149,7 +153,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
     []
   );
 
-  const applyPriceFilter = (filteredProducts: newProduct[]) => {
+  const applyPriceFilter = (filteredProducts: DeletedProduct[]) => {
     const sortedProducts = [...filteredProducts];
     if (priceFilter === "asc") {
       return sortedProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
@@ -159,6 +163,35 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
       return sortedProducts;
     }
   };
+
+
+  const exportToXLS = useCallback(() => {
+    const data = initialProducts.map((product) => ({
+      Ref: product.Ref,
+      Designation: product.Designation,
+      Price: product.Price,
+      Stock: product.Stock,
+      Image: product.Image,
+      Brand: product.Brand,
+      Company: product.Company,
+      DiscountAmount: product.DiscountAmount,
+      BrandImage: product.BrandImage,
+      Link: product.Link,
+      DateScrapping: product.DateScrapping.toString(), 
+      supprime: product.supprime || 0,
+      Category: product.Category,
+      Subcategory: product.Subcategory,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produits");
+
+    const today = new Date();
+    const filename = `Products_${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+  }, [initialProducts]);
 
   const filteredProductsByCompany = selectedCompany
     ? initialProducts.filter(product => product.Company === selectedCompany)
@@ -209,7 +242,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
     resetFilters();
   };
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
-  const newProducts = filteredProducts.filter((product: newProduct) => product.supprime);
+  const newProducts = filteredProducts.filter((product: DeletedProduct) => product.supprime);
   
   const newAvailableProducts = newProducts.filter(product => product.Stock === 'En stock').length;
   const newUnavailableProducts = newProducts.filter(product => product.Stock === 'Sur commande').length;
@@ -231,7 +264,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
       className={styles.search_icon}/>
       </div>
 
-        <div className={styles.dashboard_content_cards}>
+        <div className={styles.dashboard_cards}>
         <DashboardComponents.StatCard
             title="Produits Hors stock"
             value={newProducts.length}
@@ -288,7 +321,13 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
       onClick={() => setDisplayMode('box')}
       className={displayMode === 'box' ? styles.selected_icon : styles.icon}
     />
-  </div><tr></tr>
+  </div>
+  <img
+      className={styles.xls_image}
+  src="/images/xls.jpg"
+  alt="Exporter en XLS"
+  onClick={exportToXLS}
+/><tr></tr>
   {loadingProducts ? (
   <p style={{ textAlign: "center" }}><b>Chargement...</b></p>
 ) : newProducts.length === 0 ? (
@@ -301,13 +340,13 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
                 <th>Désignation</th>
                 <th>Marque</th>
                 <th>Prix</th>
-
+         
             </thead>
             {newProducts.length > 0 ? (
               <tbody>
                 {newProducts
                   .slice(0, fetched)
-                  .map((product: newProduct, index: number) => (
+                  .map((product: DeletedProduct, index: number) => (
                     <tr key={index}>
                       <td>
                 {product.supprime && <img src="/images/delete-image.png" alt="New" style={{width: '32px',height: '32px',position:'absolute',marginLeft:'-15px'}} />}
@@ -319,22 +358,26 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
                       </td>
                       <td>{product.Ref}</td>
                       <td>
+
                       <Link
-  className="product-details-link"
-  to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
->
-
-                          {product.Designation.length > 30
-                            ? product.Designation.slice(0, 30) + "..."
-                            : product.Designation}
-                        
-</Link>
-
-                      </td>
-                                      <td>{product.Brand}</td>
+    className="product-details-link"
+    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
+  >
+    <a
+      href={product.Link}
+      target="_blank"
+      style={{ textDecoration: "none", color: "black" }}
+    >
+      {product.Designation.length > 30
+        ? product.Designation.slice(0, 30) + "..."
+        : product.Designation}
+    </a>
+  </Link>
+</td>
+                      <td>{product.Brand}</td>
 
                       <td>{product.Price}</td>
-            
+                     
                     </tr>
                   ))}
               </tbody>
@@ -342,7 +385,7 @@ const [totalUnavailableNewProducts, setTotalUnavailableNewProducts] = useState<n
           </table>
         ) : (
           <div className={styles.dashboard_content_cards}>
-            {newProducts.map((product: newProduct, index: number) => (
+            {newProducts.map((product: DeletedProduct, index: number) => (
               <div key={index} className={styles.product_box} style={{height: '490px',width: '200px'}}>
                 <img className={styles.sold_out_overlay} src="/images/out-of-stock.png" alt="new" />
                 <img src={product.Image} alt={product.Designation} />

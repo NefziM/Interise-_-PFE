@@ -6,6 +6,8 @@ import { DashboardComponents } from '@components';
 import '../Products/productPage.css';
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
+import * as XLSX from "xlsx"; 
+
 
 
 interface Product {
@@ -16,12 +18,18 @@ interface Product {
   Image: string;
   Brand: string;
   Company: string;
+  DiscountAmount: string;
+  BrandImage: string;
   Link: string;
-  AncienPrix?: string;
-  DateModification?: Date;
   DateScrapping: Date;
-  BrandImage:string;
-  DiscountAmount:string;
+  DateAjout?: Date;
+  AncienPrix?: string;
+  Modifications?: Modification[];
+  Category :string;
+  Subcategory:string;
+}
+interface Modification {
+  dateModification: Date;
 }
 
 const Update: React.FC = () => {
@@ -37,10 +45,16 @@ const Update: React.FC = () => {
   const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(null);
   const [fetched, setFetched] = useState<number>(0);
   const [selectedCompany, setSelectedCompany] = useState<string | null>('All'); 
- const [dateFilter, setDateFilter] = useState<string | null>(null);
-
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [newProductsCount, setNewProductsCount] = useState(0);
+  const [modifiedProductsCount, setModifiedProductsCount] = useState(0);
+  const [availableProductsSet, setAvailableProductsCount] = useState(0);
+  const [onOrderProductsSet, setOnOrderProductsCount] = useState(0);
+  const [deletedProductsCount, setDeletedProductsCount] = useState(0);
   const [initialProducts, setInitialProducts] = useState<Product[]>([]);
   const [companyOptions, setCompanyOptions] = useState<string[]>([]); 
+  const [dateFilter, setDateFilter] = useState<string | null>('jour');
+ 
 
   useEffect(() => {
     fetchProducts();
@@ -53,9 +67,7 @@ const Update: React.FC = () => {
 
   const fetchProducts = useCallback(() => {
     setLoadingProducts(true);
-    const today = new Date();
-    const dateString = today.toISOString().split('T')[0]; // Récupère la date d'aujourd'hui au format 'YYYY-MM-DD'
-  
+
     axios
       .get('http://localhost:5000/api/products', {
         params: {
@@ -64,18 +76,19 @@ const Update: React.FC = () => {
         },
       })
       .then((response) => {
-        const data = response.data;
-        const uniqueProducts = removeDuplicates(data, 'Ref');
-        const todayProducts = uniqueProducts.filter(product => product.DateModification && product.DateModification.split('T')[0] === dateString);
-        setProducts(todayProducts);
-        setInitialProducts(todayProducts);
+        const data: Product[] = response.data;
+        const uniqueProducts = removeDuplicates(data, 'Ref'); 
+        setProducts(uniqueProducts.filter((product: Product) => product.Modifications && product.Modifications.length > 0));
+        setInitialProducts(uniqueProducts.filter((product: Product) => product.Modifications && product.Modifications.length > 0));
         setLoadingProducts(false);
+         calculateStatistics(data);
       })
       .catch((error) => {
         console.error('Error fetching products:', error);
         setLoadingProducts(false);
       });
-  }, [page, pageSize, setLoadingProducts, setProducts, setInitialProducts]);
+  }, [page, pageSize]);
+
   const handleSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const { value } = event.target;
@@ -97,6 +110,39 @@ const Update: React.FC = () => {
     },
     [initialProducts]
   );
+
+
+  const exportToXLS = useCallback(() => {
+    const data = initialProducts.map((product) => ({
+      Ref: product.Ref,
+      Designation: product.Designation,
+      Price: product.Price,
+      Stock: product.Stock,
+      Image: product.Image,
+      Brand: product.Brand,
+      Company: product.Company,
+      DiscountAmount: product.DiscountAmount,
+      BrandImage: product.BrandImage,
+      Link: product.Link,
+      AncienPrix: product.AncienPrix || "",
+      DateModification: product.Modifications && product.Modifications.length > 0
+      ? product.Modifications.reduce((latest, current) => 
+          new Date(latest.dateModification) > new Date(current.dateModification) ? latest : current
+        ).dateModification.toString()
+      : "",
+      Category: product.Category,
+      Subcategory: product.Subcategory,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produits");
+
+    const today = new Date();
+    const filename = `Products_${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+  }, [initialProducts]);
 
   const countUniqueReferences = (products: Product[]) => {
     const uniqueReferences = new Set<string>();
@@ -157,10 +203,11 @@ const Update: React.FC = () => {
   const handleAvailabilityFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
-      setAvailabilityFilter(value === 'available' || value === 'unavailable' ? value : null);
+      setAvailabilityFilter(value); 
     },
     []
   );
+  
 
   const applyPriceFilter = (filteredProducts: Product[]) => {
     const sortedProducts = [...filteredProducts];
@@ -173,12 +220,7 @@ const Update: React.FC = () => {
     }
   };
 
-  const handleDisplayModeChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setDisplayMode(event.target.value as 'table' | 'box');
-    },
-    []
-  );
+ 
 
   const __handleLoadMore = () => {
     if (products.length > fetched) {
@@ -201,17 +243,118 @@ const Update: React.FC = () => {
   const handleResetFilters = () => {
     resetFilters();
   };
+  const calculateStatistics = (products: Product[]) => {
+    let allProductsSet = new Set();
+    let newProductsSet = new Set();
+    let modifiedProductsSet = new Set();
+    let outOfStockProductsSet = new Set();
+    let onOrderProductsSet =new Set();
+    let availableProductsSet =new Set();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    products.forEach((product) => {
+        allProductsSet.add(product.Ref);
+       
+        if (product.DateAjout) {
+            const ajoutDate = new Date(product.DateAjout);
+            ajoutDate.setHours(0, 0, 0, 0);
+            if (ajoutDate.getTime() === today.getTime()) {
+                newProductsSet.add(product.Ref);
+            }
+        }
+       
+        if (product.Modifications && product.Modifications.length > 0) {
+            product.Modifications.forEach((mod) => {
+                const modDate = new Date(mod.dateModification);
+                modDate.setHours(0, 0, 0, 0);
+                if (modDate.getTime() === today.getTime()) {
+                    modifiedProductsSet.add(product.Ref);
+                }
+            });
+        }
+        switch (product.Stock) {
+          case "En stock":
+            availableProductsSet.add(product.Ref);
+            break;
+          case "Sur commande":
+            onOrderProductsSet.add(product.Ref);
+            break;
+          case "Hors stock":
+            outOfStockProductsSet.add(product.Ref);
+            break;
+        }
+      });
+  
+      setTotalProducts(allProductsSet.size);
+      setAvailableProductsCount(availableProductsSet.size);
+      setOnOrderProductsCount(onOrderProductsSet.size);
+      setDeletedProductsCount(outOfStockProductsSet.size);
+      setNewProductsCount(newProductsSet.size);
+      setModifiedProductsCount(modifiedProductsSet.size);
+      setDeletedProductsCount(outOfStockProductsSet.size);
+  
+  };
 
   const filteredProductsByAvailability = availabilityFilter
-    ? availabilityFilter === 'available'
-      ? products.filter((product: Product) => product.Stock === 'En stock')
-      : products.filter((product: Product) => product.Stock === 'Sur commande')
-    : products;
+      ? availabilityFilter === "available"
+        ? products.filter(
+            (product) => product.Stock === "En stock"
+          )
+        : availabilityFilter === "unavailable"
+          ? products.filter(
+              (product) => product.Stock === "Sur commande"
+            )
+          : availabilityFilter === "horstock"
+            ? products.filter(
+                (product) => product.Stock === "Hors stock"
+              )
+            : products  // If no valid filter is selected or if the filter is reset
+       : products;
 
+
+    
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
   const truncateText = (text: string, maxLength: number) => {
     return text.length > maxLength ? text.slice(0, maxLength) + ' ...' : text;
   };
+
+  const filterProductsByDateRange = (filteredProducts: Product[]) => {
+    if (!dateFilter) return filteredProducts;
+    
+    const currentDate = new Date();
+    
+    const startDate = new Date(currentDate);
+    let endDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 23, 59, 59, 999); 
+  
+    switch (dateFilter) {
+      case 'jour':
+        break;
+      case 'semaine':
+        startDate.setDate(currentDate.getDate() - 7);
+        endDate = new Date();
+        break;
+      case 'mois':
+        startDate.setMonth(currentDate.getMonth() - 1);
+        endDate = new Date(); 
+        break;
+      default:
+        return filteredProducts; 
+    }
+  
+    return filteredProducts.filter(product => {
+      // Vérifie si le produit a des modifications et prend la date de la dernière modification.
+      if (product.Modifications && product.Modifications.length > 0) {
+        const lastModification = product.Modifications[product.Modifications.length - 1];
+        const lastModificationDate = new Date(lastModification.dateModification);
+        return lastModificationDate >= startDate && lastModificationDate <= endDate;
+      }
+      return false;  // Si aucun enregistrement de modification n'existe, le produit n'est pas inclus.
+    });
+    
+  };
+  
+
   return (
     <div className={`${styles.dashboard_content} products_page product-page-inputs`}>
     <div className={styles.dashboard_content_container}>
@@ -227,23 +370,41 @@ const Update: React.FC = () => {
       className={styles.search_icon}/>
       </div>
 
-        <div className={styles.dashboard_content_cards}>
-        <DashboardComponents.StatCard
-  title="Produits modifiés"
-  value={countUniqueReferences(products)}
-  icon="/icons/product.svg"
-/>
-
-              <DashboardComponents.StatCard
-  title="Produits Disponibles"
-  value={filteredProducts.filter(product => product.Stock === 'En stock').length}
-  icon="/icons/product.svg"
-/>
-<DashboardComponents.StatCard
-  title="Produits Épuisés"
-  value={filteredProducts.filter(product => product.Stock === 'Sur commande').length}
-  icon="/icons/product.svg"
-/>
+      <div className={styles.dashboard_cards}>
+          <DashboardComponents.StatCard
+            title="Tous les Produits"
+            link={ROUTES.PRODUCTS}
+            value={totalProducts}
+            icon="/icons/product.svg"
+          />
+           <DashboardComponents.StatCard
+            title="Produits Disponibles"
+            value={availableProductsSet}
+            icon="/icons/product.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Produits sur commandes"
+            value={onOrderProductsSet}
+            icon="/icons/product.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Nouveaux Produits"
+            link={ROUTES.NEWPRODUCTS}
+            value={newProductsCount}
+            icon="/icons/new.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Produits Modifiés"
+            link={ROUTES.UPDATE}
+            value={modifiedProductsCount}
+            icon="/icons/update.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Produits Indisponibles"
+            link={ROUTES.DELETEDPRODUCTS}
+            value={deletedProductsCount}
+            icon="/images/suppression.png"
+          />
         </div>
 
         <div className={styles.filter_container}>
@@ -257,7 +418,13 @@ const Update: React.FC = () => {
               ))}
             </select>
           </div>
-
+          <div className={styles.filter_group}>
+            <select value={dateFilter || ""} onChange={(e) => setDateFilter(e.target.value)}>
+             <option value="jour">aujourd'hui</option>
+             <option value="semaine"> cette semaine</option>
+             <option value="mois">ce mois</option>
+           </select>
+         </div>
           <div className={styles.filter_group}>
             <input type="number" value={minPrice} onChange={handleMinPriceChange} placeholder='Prix min'/>
           </div>
@@ -275,10 +442,13 @@ const Update: React.FC = () => {
           </div>
 
           <div className={styles.filter_group}>
-            <select value={availabilityFilter || ''} onChange={handleAvailabilityFilterChange}>
-              <option value="" style={{color:'gray'}}>Filtrer par disponibilité </option>
-              <option value="available"> Produits Disponibles</option>
-              <option value="unavailable">Produits Épuisés</option>
+            <select value={availabilityFilter || ""}
+              onChange={handleAvailabilityFilterChange}
+            >
+              <option value="" style={{color:'gray'}}>Filtrer par disponibilité</option>
+              <option value="available">Disponibles</option>
+              <option value="unavailable">Sur commandes</option>
+              <option value="horstock">Hors stock</option>
             </select>
           </div>
           <button className={styles.reset_button} onClick={handleResetFilters}><b>X</b></button>
@@ -298,11 +468,18 @@ const Update: React.FC = () => {
       onClick={() => setDisplayMode('box')}
       className={displayMode === 'box' ? styles.selected_icon : styles.icon}
     />
-  </div><tr></tr>
+  </div>
+  <img
+      className={styles.xls_image}
+  src="/images/xls.jpg"
+  alt="Exporter en XLS"
+  onClick={exportToXLS}
+/>
+  <tr></tr>
   {loadingProducts ? (
-  <p style={{ textAlign: "center" }}>Chargement...</p>
+  <p style={{ textAlign: "center" }}><b>Veuillez patienter...</b></p>
 ) : products.length === 0 ? (
-  <p style={{ textAlign: "center",color:'red' }}><b>Aucun produit trouvé</b></p>
+  <p style={{ textAlign: "center", color: "red" }}><b>Aucun produit trouvé</b></p>
 ) : displayMode === 'table' ? (
           <table>
             <thead>
@@ -319,8 +496,10 @@ const Update: React.FC = () => {
             {filteredProducts.map((product, index) => (
                 <tr key={index}>
                   <td>
-                  {product.DateModification && <img src="/images/updated-table.png" alt="Modified" style={{width: '35px',height: '35px',position:'absolute',marginLeft:'-15px'}}/>}
-                    <img src={product.Image} alt={product.Designation} />
+                {product.Modifications && product.Modifications.length > 0 && 
+  <img src="/images/updated-table.png" alt="Modified" style={{width: '35px', height: '35px', position: 'absolute', marginLeft: '-15px'}}/>
+}
+ <img src={product.Image} alt={product.Designation} />
                     {product.DiscountAmount !== "Aucune remise" && (
             <p style={{  backgroundColor: "red",
             color: "white",
@@ -331,18 +510,21 @@ const Update: React.FC = () => {
           )}</td>
                   <td>{product.Ref}</td>
                   <td>
-                      <Link
-  className="product-details-link"
-  to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
->
-
-                          {product.Designation.length > 30
-                            ? product.Designation.slice(0, 30) + "..."
-                            : product.Designation}
-                        
-</Link>
-
-                      </td>
+                  <Link
+    className="product-details-link"
+    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
+  >
+    <a
+      href={product.Link}
+      target="_blank"
+      style={{ textDecoration: "none", color: "black" }}
+    >
+      {product.Designation.length > 30
+        ? product.Designation.slice(0, 30) + "..."
+        : product.Designation}
+    </a>
+  </Link>
+</td>
 
                   <td>{product.Brand}</td>
                   <td>
@@ -351,9 +533,13 @@ const Update: React.FC = () => {
                         </span>
                       </td>
                   <td>{product.AncienPrix}</td>
-                  <td>{new Date(product.DateScrapping).toLocaleDateString()}</td>
-                  <td>{product.Price}</td>
-               
+                  <td>
+  {product.Modifications && product.Modifications.length > 0
+    ? new Date(product.Modifications[product.Modifications.length - 1].dateModification).toLocaleDateString()
+    : 'Pas de modifications'}
+</td>
+ <td>{product.Price}</td>
+     
                 </tr>
               ))}
             </tbody>

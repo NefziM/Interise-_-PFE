@@ -67,7 +67,7 @@ const Competitors: React.FC = () => {
       className={styles.search_icon}/>
         </div>
 
-        <div className={styles.dashboard_content_cards}>
+        <div className={styles.dashboard_cards}>
           <DashboardComponents.StatCard
             title="Tous Les Concurrents"
             value={competitors.length}

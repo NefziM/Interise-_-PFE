@@ -2,21 +2,30 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
+app.use(express.json()); // Ensure JSON bodies are parsed
 
-const uri = process.env.MONGO_URI;
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch(err => console.error("Could not connect to MongoDB", err));
 
-mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-
-const connection = mongoose.connection;
-connection.once("open", () => {
-  console.log("Connected to MongoDB");
+// Email transport configuration
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USERNAME,
+    pass: process.env.EMAIL_PASSWORD
+  }
 });
 
+// Product Schema
 const productSchema = new mongoose.Schema({
   Ref: String,
   Designation: String,
@@ -27,36 +36,19 @@ const productSchema = new mongoose.Schema({
   Company: String,
   Link: String,
 });
-
 const Product = mongoose.model("Product", productSchema);
 
+// Competitor Schema
 const competitorSchema = new mongoose.Schema({
-  Logo: {
-    type: String,
-    required: true,
- 
-  },
-  Name: {
-    type: String,
-    required: true,
-  
-  },
-  Link: {
-    type: String,
-    required: true,
-   
-  },
+  Logo: { type: String, required: true },
+  Name: { type: String, required: true },
+  Link: { type: String, required: true },
 });
-
 const Competitor = mongoose.model("Competitor", competitorSchema);
 
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  next();
-});
 
+
+// Products API
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find();
@@ -66,10 +58,6 @@ app.get("/api/products", async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
-
-
-
 
 app.get("/api/products-by-reference/:reference", async (req, res) => {
   try {
@@ -86,6 +74,7 @@ app.get("/api/products-by-reference/:reference", async (req, res) => {
   }
 });
 
+// Competitors API
 app.get("/api/competitors", async (req, res) => {
   try {
     const competitors = await Competitor.find();
@@ -109,29 +98,160 @@ app.post("/api/competitors", async (req, res) => {
 });
 
 
-app.delete("/api/competitors/:id", async (req, res) => {
+// User Schema
+const userSchema = new mongoose.Schema({
+  nom: { type: String, required: true },
+  prenom: { type: String, required: true },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    validate: {
+      validator: function(v) { return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(v); },
+      message: props => `${props.value} n'est pas un email valide!`
+    }
+  },
+  adresse: { type: String, required: true },
+  motDePasse: { type: String, required: true },
+  Tel: { type: String, required: true },
+  isEmailVerified: { type: Boolean, default: false },
+  emailVerificationToken: String,
+  emailVerificationTokenExpires: Date
+});
+// Registration and Login API
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('motDePasse')) return next();
+  this.motDePasse = await bcrypt.hash(this.motDePasse, 10);
+  next();
+});
+
+const User = mongoose.model('User', userSchema);
+
+app.post("/api/register", async (req, res) => {
   try {
-    const { id } = req.params;
-    await Competitor.findByIdAndDelete(id);
-    res.status(204).end();
+    const { nom, prenom, email, adresse, motDePasse, Tel } = req.body;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).send("Email already in use.");
+    }
+
+    const emailVerificationToken = crypto.randomBytes(16).toString('hex');
+    const confirmLink = `${process.env.SERVER_URL}/api/confirm-email?token=${emailVerificationToken}&confirm=yes`;
+    const rejectLink = `${process.env.SERVER_URL}/api/confirm-email?token=${emailVerificationToken}&confirm=no`;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USERNAME,
+      to: email,
+      subject: 'Interise.io |Confirm Account Creation',
+      html: `<html>
+      <head>
+      <style>
+        .button {
+          color:black;
+          display: inline-block;
+          padding: 10px 20px;
+          margin: 10px;
+          font-size: 16px;
+          cursor: pointer;
+          text-align: center;
+          text-decoration: none;
+          outline: none;
+          color: #fff;
+          background-color: #4CAF50;
+          border: none;
+          border-radius: 15px;
+          box-shadow: 0 9px #999;
+        }
+      
+        .button:hover {background-color: #3e8e41}
+      
+        .button:active {
+          background-color: #3e8e41;
+          box-shadow: 0 5px #666;
+          transform: translateY(4px);
+        }
+      
+        .button-red {
+          background-color: #f44336;
+        }
+      
+        .button-red:hover {background-color: #da190b}
+      
+        .button-red:active {
+          background-color: #da190b;
+          box-shadow: 0 5px #666;
+          transform: translateY(4px);
+        }
+      </style>
+      </head>
+      <body>
+        <h1>Interise.io | Confirm Your Account</h1>
+        <h3>Hi ${email} ,</h3>
+        <p >Is it you who wants to create an account?</p>
+        <a href="${confirmLink}" class="button" style="color:black">Yes</a>
+        <a href="${rejectLink}" class="button button-red" style="color:black">No</a>
+      </body>
+      </html>
+      `
+    };
+
+    const user = new User({ nom, prenom, email, adresse, motDePasse, Tel, isEmailVerified: false, emailVerificationToken, emailVerificationTokenExpires: Date.now() + 3600000 });
+    await user.save();
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).send("Please check your email to confirm account creation.");
   } catch (error) {
-    console.error("Error deleting competitor:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Registration error:", error);
+    res.status(500).send("Error registering user: " + error.message);
+  }
+});
+
+app.get('/api/confirm-email', async (req, res) => {
+  try {
+    const { token, confirm } = req.query;
+    const user = await User.findOne({
+      emailVerificationToken: token,
+      emailVerificationTokenExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).send(`<html><body><h1>Link Invalid</h1><p>This token is either invalid or has expired.</p><a href="${process.env.CLIENT_URL}">Return Home</a></body></html>`);
+    }
+
+    if (confirm === 'yes') {
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationTokenExpires = undefined;
+      await user.save();
+      res.send(`<html><body><h1>Account Confirmed</h1><p>Thank you for confirming. Your account has been created.</p><a href="${process.env.CLIENT_URL}/login">Go to Login</a></body></html>`);
+    } else {
+      await User.deleteOne({ _id: user._id });
+      res.send(`<html><body><h1>Account Creation Declined</h1><p>You have declined to create an account.</p><a href="${process.env.CLIENT_URL}">Return Home</a></body></html>`);
+    }
+  } catch (error) {
+    console.error("Email confirmation error:", error);
+    res.status(500).send(`<html><body><h1>Error</h1><p>Error processing your request: ${error.message}</p><a href="${process.env.CLIENT_URL}">Return Home</a></body></html>`);
   }
 });
 
 
-
-
-app.put("/api/competitors/:id", async (req, res) => {
+app.post("/api/login", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { Logo, Name, Link } = req.body;
-    const updatedCompetitor = await Competitor.findByIdAndUpdate(id, { Logo, Name, Link }, { new: true });
-    res.json(updatedCompetitor);
+    const { email, motDePasse } = req.body;
+    const user = await User.findOne({ email, isEmailVerified: true });
+    if (!user) {
+      return res.status(401).send("Either the email has not been verified or it does not exist.");
+    }
+
+    const isMatch = await bcrypt.compare(motDePasse, user.motDePasse);
+    if (!isMatch) {
+      return res.status(401).send("Invalid login credentials.");
+    }
+
+    res.send("Logged in successfully.");
   } catch (error) {
-    console.error("Error updating competitor:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Login error:", error);
+    res.status(500).send("Error logging in: " + error.message);
   }
 });
 

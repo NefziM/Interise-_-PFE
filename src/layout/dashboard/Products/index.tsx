@@ -6,7 +6,7 @@ import "./productPage.css";
 import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
-
+import * as XLSX from "xlsx"; 
 interface Product {
   Ref: string;
   Designation: string;
@@ -21,12 +21,13 @@ interface Product {
   DateScrapping: Date;
   DateAjout?: Date;
   AncienPrix?: string;
-  DateModification?: Date;
-  supprime?: number;
+  Modifications?: Modification[];
   Category :string;
   Subcategory:string;
 }
-
+interface Modification {
+  dateModification: Date;
+}
 const Products: React.FC = () => {
   const [search, setSearch] = useState<string>("");
   const [page, setPage] = useState<number>(1);
@@ -46,11 +47,14 @@ const Products: React.FC = () => {
   const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(
     null
   );
-  const [newProductsCount, setNewProductsCount] = useState<number>(0);
-  const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
+const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
     null
   );
-
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [newProductsCount, setNewProductsCount] = useState(0);
+  const [modifiedProductsCount, setModifiedProductsCount] = useState(0);
+  const [deletedProductsCount, setDeletedProductsCount] = useState(0);
+ 
   const today = useMemo(() => new Date(), []);
 
   const filterProductsByArrivalDate = (filterType: "new" | "old") => {
@@ -89,41 +93,99 @@ const Products: React.FC = () => {
   const filterModifiedProducts = (products: Product[]) => {
     const filteredProducts: Product[] = [];
     const productsMap: Map<string, Product> = new Map();
-
+  
     for (const product of products) {
       if (!productsMap.has(product.Ref)) {
         productsMap.set(product.Ref, product);
       } else {
         const existingProduct = productsMap.get(product.Ref)!;
-        if (
-          existingProduct.DateModification &&
-          product.DateModification &&
-          existingProduct.DateModification < product.DateModification
-        ) {
+        const existingProductLatestModification = getLastModificationDate(existingProduct);
+        const currentProductLatestModification = getLastModificationDate(product);
+  
+        if (existingProductLatestModification < currentProductLatestModification) {
           productsMap.set(product.Ref, product);
         }
       }
     }
-
+  
     productsMap.forEach((value) => {
       filteredProducts.push(value);
     });
-
+  
     return filteredProducts;
   };
+  
+  // Helper function to get the most recent modification date from the product
+  const getLastModificationDate = (product: Product): Date => {
+    if (product.Modifications && product.Modifications.length > 0) {
+      // Assuming that the modifications are sorted by date, otherwise you might need to sort them first
+      return product.Modifications[product.Modifications.length - 1].dateModification;
+    }
+    return product.DateAjout || new Date(0); // Fallback to DateAjout or a very old date if no modifications exist
+  };
+
 
   useEffect(() => {
     fetchProducts();
     setFetched(50);
-    if (
-      arrivalDateFilter &&
-      (arrivalDateFilter === "new" || arrivalDateFilter === "old")
-    ) {
-      filterProductsByArrivalDate(arrivalDateFilter);
-    } else {
-      filterModifiedProducts(initialProducts);
-    }
-  }, [page, pageSize, arrivalDateFilter, today]);
+  }, [page, pageSize]); // Removed dependency on initialProducts to avoid infinite loop
+
+  const fetchProducts = useCallback(() => {
+    setLoadingProducts(true);
+    axios.get("http://localhost:5000/api/products", {
+        params: { page, pageSize },
+    })
+    .then((response) => {
+        const fetchedProducts: Product[] = response.data;
+        setInitialProducts(fetchedProducts);
+        setProducts(fetchedProducts);
+        setLoadingProducts(false);
+        calculateStatistics(fetchedProducts);
+    })
+    .catch((error) => {
+        console.error("Error fetching products:", error);
+        setLoadingProducts(false);
+    });
+  }, [page, pageSize]);
+
+  const calculateStatistics = (products: Product[]) => {
+    let allProductsSet = new Set();
+    let newProductsSet = new Set();
+    let modifiedProductsSet = new Set();
+    let outOfStockProductsSet = new Set();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    products.forEach((product) => {
+        allProductsSet.add(product.Ref);
+       
+        if (product.DateAjout) {
+            const ajoutDate = new Date(product.DateAjout);
+            ajoutDate.setHours(0, 0, 0, 0);
+            if (ajoutDate.getTime() === today.getTime()) {
+                newProductsSet.add(product.Ref);
+            }
+        }
+
+        if (product.Modifications && product.Modifications.length > 0) {
+            product.Modifications.forEach((mod) => {
+                const modDate = new Date(mod.dateModification);
+                modDate.setHours(0, 0, 0, 0);
+                if (modDate.getTime() === today.getTime()) {
+                    modifiedProductsSet.add(product.Ref);
+                }
+            });
+        }
+
+        if (product.Stock === "Hors stock") {
+            outOfStockProductsSet.add(product.Ref);
+        }
+    });
+    setTotalProducts(allProductsSet.size);
+    setNewProductsCount(newProductsSet.size);
+    setModifiedProductsCount(modifiedProductsSet.size);
+    setDeletedProductsCount(outOfStockProductsSet.size);
+  };
 
   const extractCategories = (products: Product[]) => {
     const categories: { [key: string]: string[] } = {};
@@ -163,66 +225,45 @@ const Products: React.FC = () => {
     [initialProducts]
   );
 
-  const fetchProducts = useCallback(() => {
-    setLoadingProducts(true);
-
-    axios
-      .get("http://localhost:5000/api/products", {
-        params: {
-          page,
-          pageSize,
-        },
-      })
-      .then((response) => {
-        const data: Product[] = response.data;
-
-        console.log("All products:", data);
-
-        const updatedProducts = data.map((product) => {
-          const initialProduct = initialProducts.find(
-            (p) => p.Ref === product.Ref
-          );
-
-          if (initialProduct && initialProduct.Price !== product.Price) {
-            return {
-              ...product,
-              ancien_prix: initialProduct.Price,
-              update: 1,
-            };
-          }
-
-          return {
-            ...product,
-            ancien_prix: product.DateAjout ? "" : product.Price,
-          };
-        });
-
-        setProducts(updatedProducts);
-        setInitialProducts(data);
-
-        const newProducts = data.filter((product) => {
-          if (!product.DateAjout) {
-            return false; // Ignorer ce produit si DateAjout est indéfini
-          }
-          
-          const productDate = new Date(product.DateAjout); // Convertir la date d'ajout en objet Date
-          productDate.setHours(0, 0, 0, 0); // Réinitialiser l'heure pour une comparaison juste
-          
-          return productDate.getTime() === today.getTime(); // Comparer les timestamps
-        });
-        
-        
-        setNewProductsCount(newProducts.length);
-
-        setLoadingProducts(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching products:", error);
-        setLoadingProducts(false);
-      });
-  }, [page, pageSize, initialProducts]);
 
 
+ 
+  const exportToXLS = useCallback(() => {
+    const data = initialProducts.map((product) => ({
+      Ref: product.Ref,
+      Designation: product.Designation,
+      Price: product.Price,
+      Stock: product.Stock,
+      Image: product.Image,
+      Brand: product.Brand,
+      Company: product.Company,
+      DiscountAmount: product.DiscountAmount,
+      BrandImage: product.BrandImage,
+      Link: product.Link,
+      DateScrapping: product.DateScrapping.toString(), // Convertir en chaîne de caractères
+      DateAjout: product.DateAjout ? product.DateAjout.toString() : "",
+      AncienPrix: product.AncienPrix || "",
+      DateModification: product.Modifications && product.Modifications.length > 0
+      ? product.Modifications.reduce((latest, current) => 
+          new Date(latest.dateModification) > new Date(current.dateModification) ? latest : current
+        ).dateModification.toString()
+      : "",
+     Category: product.Category,
+      Subcategory: product.Subcategory,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produits");
+
+    const today = new Date();
+    const filename = `Products_${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}.xlsx`;
+
+    XLSX.writeFile(wb, filename);
+  }, [initialProducts]);
+
+
+  
 
   const handleSearch = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -302,13 +343,11 @@ const Products: React.FC = () => {
   const handleAvailabilityFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
-      setAvailabilityFilter(
-        value === "available" || value === "unavailable" ? value : null
-      );
+      setAvailabilityFilter(value); 
     },
     []
   );
-
+  
   const applyPriceFilter = (filteredProducts: Product[]) => {
     const sortedProducts = [...filteredProducts];
     if (priceFilter === "asc") {
@@ -344,15 +383,22 @@ const Products: React.FC = () => {
         })
       : filteredProductsByCompany;
 
-  const filteredProductsByAvailability = availabilityFilter
-    ? availabilityFilter === "available"
-      ? filteredProductsByPrice.filter(
-          (product) => product.Stock === "En stock"
-        )
-      : filteredProductsByPrice.filter(
-          (product) => product.Stock === "Sur commande"
-        )
-    : filteredProductsByPrice;
+      const filteredProductsByAvailability = availabilityFilter
+      ? availabilityFilter === "available"
+        ? filteredProductsByPrice.filter(
+            (product) => product.Stock === "En stock"
+          )
+        : availabilityFilter === "unavailable"
+          ? filteredProductsByPrice.filter(
+              (product) => product.Stock === "Sur commande"
+            )
+          : availabilityFilter === "horstock"
+            ? filteredProductsByPrice.filter(
+                (product) => product.Stock === "Hors stock"
+              )
+            : filteredProductsByPrice  // If no valid filter is selected or if the filter is reset
+      : filteredProductsByPrice;
+    
 
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
 
@@ -383,6 +429,8 @@ const Products: React.FC = () => {
   const handleResetFilters = () => {
     resetFilters();
   };
+  
+  
   return (
     <div
       className={`${styles.dashboard_content} products_page product-page-inputs`}
@@ -398,21 +446,40 @@ const Products: React.FC = () => {
           <img src="/icons/search.gif" className={styles.search_icon} />
         </div>
 
-        <div className={styles.dashboard_content_cards}>
+        <div className={styles.dashboard_cards}>
           <DashboardComponents.StatCard
-            title="Tous Les Produits"
-            value={uniqueProducts.length}
+            title="Tous les Produits"
+            link={ROUTES.PRODUCTS}
+            value={totalProducts}
             icon="/icons/product.svg"
           />
-          <DashboardComponents.StatCard
+           <DashboardComponents.StatCard
             title="Produits Disponibles"
             value={availableProductsCount}
             icon="/icons/product.svg"
           />
           <DashboardComponents.StatCard
-            title="Produits Épuisés"
+            title="Produits sur commandes"
             value={unavailableProductsCount}
             icon="/icons/product.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Nouveaux Produits"
+            link={ROUTES.NEWPRODUCTS}
+            value={newProductsCount}
+            icon="/icons/new.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Produits Modifiés"
+            link={ROUTES.UPDATE}
+            value={modifiedProductsCount}
+            icon="/icons/update.svg"
+          />
+          <DashboardComponents.StatCard
+            title="Produits Indisponibles"
+            link={ROUTES.DELETEDPRODUCTS}
+            value={deletedProductsCount}
+            icon="/images/suppression.png"
           />
         </div>
 
@@ -484,8 +551,8 @@ const Products: React.FC = () => {
             >
               <option value="" style={{color:'gray'}}>Filtrer par disponibilité</option>
               <option value="available">Disponibles</option>
-              <option value="unavailable">Indisponible</option>
-              <option value="unavailable">Sur commande</option>
+              <option value="unavailable">Sur commandes</option>
+              <option value="horstock">Hors stock</option>
             </select>
           </div>
           <button className={styles.reset_button} onClick={handleResetFilters}><b>X</b></button>
@@ -509,6 +576,13 @@ const Products: React.FC = () => {
             }
           />
         </div>
+        <img
+      className={styles.xls_image}
+  src="/images/xls.jpg"
+  alt="Exporter en XLS"
+  onClick={exportToXLS}
+/>
+
         <tr></tr>
         {loadingProducts ? (
           <p style={{ textAlign: "center" }}>
@@ -557,7 +631,7 @@ const Products: React.FC = () => {
                             ) : null}
                           </>
                         )}
-                        {product.DateModification && (
+                        {product.Modifications && (
                           <img
                             src="/images/updated-table.png"
                             alt="Modified"
@@ -569,7 +643,7 @@ const Products: React.FC = () => {
                             }}
                           />
                         )}
-                        {product.supprime === 1 && (
+                        {product.Stock === "Hors stock" && (
                           <img
                             src="/images/delete-image.png"
                             alt="Out of Stock"
@@ -605,20 +679,22 @@ const Products: React.FC = () => {
                       </td>
                       <td>{product.Ref}</td>
                       <td>
-                      <td>
                       <Link
-  className="product-details-link"
-  to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
->
+    className="product-details-link"
+    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
+  >
+    <a
+      href={product.Link}
+      target="_blank"
+      style={{ textDecoration: "none", color: "black" }}
+    >
+      {/* Contenu du lien */}
+      {product.Designation.length > 30
+        ? product.Designation.slice(0, 30) + "..."
+        : product.Designation}
+    </a>
+  </Link>
 
-                          {product.Designation.length > 30
-                            ? product.Designation.slice(0, 30) + "..."
-                            : product.Designation}
-                        
-</Link>
-
-                      </td>
-                      
                       </td>
                       <td>{product.Brand}</td>
                       <td>
@@ -638,7 +714,7 @@ const Products: React.FC = () => {
   new Date(product.DateAjout).toLocaleDateString() ===
     new Date().toLocaleDateString() ? (
     "-"
-  ) : product.DateModification ? (
+  ) : product.Modifications ? (
     product.AncienPrix
   ) : (
     product.AncienPrix || "-"
@@ -646,17 +722,21 @@ const Products: React.FC = () => {
 </td>
 
 <td>
-  {product.DateAjout &&
-   new Date(product.DateAjout).toLocaleDateString() === new Date().toLocaleDateString()
-    ? new Date(product.DateAjout).toLocaleDateString()
-    : product.DateModification
-      ? new Date(product.DateModification).toLocaleDateString()
-      : product.DateAjout
-        ? new Date(product.DateAjout).toLocaleDateString()
-        : "No date available"}
+  {product.DateAjout && new Date(product.DateAjout).toLocaleDateString() === new Date().toLocaleDateString() ?
+    new Date(product.DateAjout).toLocaleDateString() :
+    (product.Modifications && product.Modifications.length > 0 ?
+      new Date(product.Modifications[product.Modifications.length - 1].dateModification).toLocaleDateString() :
+      (product.DateAjout ?
+        new Date(product.DateAjout).toLocaleDateString() :
+        "No date available"))
+  }
 </td>
-                      <td>{product.Price}</td>
 
+
+
+
+                      <td>{product.Price}</td>
+          
                     </tr>
                   ))}
               </tbody>
@@ -685,20 +765,21 @@ const Products: React.FC = () => {
         alt="New Product"
       />
     )}
-              {product.DateModification && (
-                <img
-                  className={styles.update_product_overlay}
-                  src="/images/upp.png"
-                  style={{
-                    width: "150px",
-                    height: "120px",
-                    position: "absolute",
-                  }}
-                  alt="Updated Product"
-                />
-              )}
+{product.Modifications && product.Modifications.length > 0 && (
+  <img
+    className={styles.update_product_overlay}
+    src="/images/upp.png"
+    style={{
+      width: "150px",
+      height: "120px",
+      position: "absolute",
+    }}
+    alt="Updated Product"
+  />
+)}
+
             
-              {product.supprime && (
+              {product.Stock ==  "Hors stock" && (
                 <img
                   className={styles.new_product_overlay}
                   src="/images/out-of-stock.png"
@@ -743,7 +824,7 @@ const Products: React.FC = () => {
                     style={{ width: "50px", height: "50px" }}
                   />
                 </p>
-                {product.DateModification && (
+                {product.Modifications && (
                   <div>
                     <p>
                       {" "}
@@ -764,7 +845,7 @@ const Products: React.FC = () => {
                     </p>
                   </div>
                 )}
-                {!product.DateModification && (
+                {!product.Modifications && (
                   <p style={{ color: "red" }}> {product.Price}</p>
                 )}
                 <p>{product.Company}</p>

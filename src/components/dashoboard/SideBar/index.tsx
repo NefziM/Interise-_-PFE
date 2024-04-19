@@ -128,21 +128,7 @@ export const SideBar = () => {
                   Produits Modifiés
                 </span>
               </Link>
-              <Link
-                to={ROUTES.DELETEDPRODUCTS}
-                className={
-                  path === ROUTES.DELETEDPRODUCTS
-                    ? "sidebar-item-active"
-                    : "sidebar-item"
-                }
-              >
-                <img
-                  src="/images/suppression.png"
-                  alt="All products"
-                  className="sidebar-item-icon"
-                />
-                <span className="sidebar-item-label">Produits supprimés</span>
-              </Link>
+             
               </div>
 
               <Link className="sidebar-footer" to={ROUTES.LOGIN}>
