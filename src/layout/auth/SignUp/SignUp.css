@@ -1,0 +1,68 @@
+/* SignUp.css */
+
+.sign-up-form {
+    max-width: 400px;
+    margin: 0 auto;
+    margin-top: 100px;
+    font-family: Georgia, serif;
+  }
+  
+  .input-container {
+    position: relative;
+    margin-bottom: 15px;
+  }
+ 
+
+/* Style du titre */
+.title {
+    text-align: center;
+    font-family: Georgia, serif;
+    font-size: 34px;
+    margin-bottom: 20px;
+    color: #050e43; 
+    font-weight: bold;
+  }
+ 
+/* Style de l'icône home */
+.home-icon {
+    width: 50px; 
+    height: 25px;
+    margin-top: 10px;
+    color:#050e43;
+  }
+  
+  .icon {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    color: #ccc;
+  }
+  
+  input {
+    width: calc(100% - 30px);
+    padding: 10px 30px 10px 40px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-family: Georgia, serif;
+  }
+  
+  button {
+    width: 90%;
+    padding: 10px;
+    background-color: rgb(7, 24, 79);
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 18px;
+    border-radius: 15px;
+    font-family: Georgia, serif;
+    margin-left: 5px;
+  }
+  
+  button:hover {
+    background-color: #111f7e;
+  }
+  

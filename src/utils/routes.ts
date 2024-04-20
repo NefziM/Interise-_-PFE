@@ -9,5 +9,5 @@ export class ROUTES {
   static readonly DELETEDPRODUCTS = "/dashboard/deletedproducts";
   static readonly PRODUCTDETAILS = "/dashboard/productdetails";
   static readonly Home = "/Home";
-  static readonly SIGNUP = "/signUp";
+  static readonly SignUp = "/signUp";
 }

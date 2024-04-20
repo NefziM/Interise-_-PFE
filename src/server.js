@@ -223,7 +223,7 @@ app.get('/api/confirm-email', async (req, res) => {
       user.emailVerificationToken = undefined;
       user.emailVerificationTokenExpires = undefined;
       await user.save();
-      res.send(`<html><body><h1>Account Confirmed</h1><p>Thank you for confirming. Your account has been created.</p><a href="${process.env.CLIENT_URL}/login">Go to Login</a></body></html>`);
+      res.send(`<html><body><h1>Account Confirmed</h1><p>Thank you for confirming. Your account has been created.</p><a href="${process.env.CLIENT_URL}">Go to Login</a></body></html>`);
     } else {
       await User.deleteOne({ _id: user._id });
       res.send(`<html><body><h1>Account Creation Declined</h1><p>You have declined to create an account.</p><a href="${process.env.CLIENT_URL}">Return Home</a></body></html>`);
