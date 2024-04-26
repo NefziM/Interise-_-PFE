@@ -50,10 +50,14 @@
 }
 
 .login_form>form>button {
-    padding: 1em;
+    padding: 10px;
     border: none;
     border-radius: 5px;
     font-family: Georgia, serif;
+    width: 400px;
+    height:40px;
+    margin-left: 130px;
+
 }
 
 .disabled_button {
@@ -64,7 +68,7 @@
 
 .enabled_button {
     background-color: var(--color-primary);
-    color: var(--color-white);
+    color: white;
     cursor: pointer;
 }
 
@@ -77,6 +81,7 @@
     box-sizing: border-box;
     margin-bottom: 10px;
     font-family: Georgia, serif;
+    height:50px;
 }
 
 .login-page-inputs button {

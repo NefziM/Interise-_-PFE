@@ -8,7 +8,6 @@ import Competitors  from "./Competitors";
 import  NewProducts  from "./NewProducts";
 import  Update  from "./Update";
 import styles from "./dashboard.module.css";
-import DeletedProducts from "./DeletedProducts";
 import ProductDetails from "./ProductDetails";
 
 const DashboardPage: React.FC = () => {
@@ -23,7 +22,6 @@ const DashboardPage: React.FC = () => {
             <Route path="competitors" element={<Competitors />} />
             <Route path="newproduct" element={<NewProducts />} />
             <Route path="update" element={<Update />} />
-            <Route path="deletedproducts" element={<DeletedProducts />} />
             <Route path="productdetails/:productId" element={<ProductDetails />} />
 
 

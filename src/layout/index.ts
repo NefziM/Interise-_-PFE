@@ -5,3 +5,4 @@ import SignUp from "./auth/SignUp";
 export { Dashboard };
 export { Login } from "./auth";
 export { SignUp };
+export { Home } from "./auth/Home";

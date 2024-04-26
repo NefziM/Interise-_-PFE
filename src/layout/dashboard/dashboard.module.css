@@ -70,45 +70,40 @@
 .dashboard_cards {
     gap: 1em;
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* Trois cartes par ligne */
-    grid-template-rows: auto auto; /* Deux lignes */
-  }
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto; 
+      }
   
-  /* Positionnement spécifique des cartes */
   .dashboard_cards > :nth-child(1) {
-    grid-column: 1 / span 1; /* Première carte, première colonne */
-    grid-row: 1 / span 1; /* Première carte, première ligne */
+    grid-column: 1 / span 1; 
+    grid-row: 1 / span 1; 
   }
   
   .dashboard_cards > :nth-child(2) {
-    grid-column: 2 / span 1; /* Deuxième carte, deuxième colonne */
-    grid-row: 1 / span 1; /* Deuxième carte, première ligne */
+    grid-column: 2 / span 1;
+    grid-row: 1 / span 1; 
   }
   
   .dashboard_cards > :nth-child(3) {
-    grid-column: 3 / span 1; /* Troisième carte, troisième colonne */
-    grid-row: 1 / span 1; /* Troisième carte, première ligne */
+    grid-column: 3 / span 1;
+    grid-row: 1 / span 1; 
   }
   
   .dashboard_cards > :nth-child(4) {
-    grid-column: 1 / span 1; /* Quatrième carte, première colonne */
-    grid-row: 2 / span 1; /* Quatrième carte, deuxième ligne */
+    grid-column: 1 / span 1; 
+    grid-row: 2 / span 1;
   }
   
   .dashboard_cards > :nth-child(5) {
-    grid-column: 2 / span 1; /* Cinquième carte, deuxième colonne */
-    grid-row: 2 / span 1; /* Cinquième carte, deuxième ligne */
+    grid-column: 2 / span 1; 
+    grid-row: 2 / span 1;
   }
   
   .dashboard_cards > :nth-child(6) {
-    grid-column: 3 / span 1; /* Sixième carte, troisième colonne */
-    grid-row: 2 / span 1; /* Sixième carte, deuxième ligne */
+    grid-column: 3 / span 1;
+    grid-row: 2 / span 1; 
   }
   
-
-
-
-
 
 
 
@@ -433,7 +428,7 @@ select {
 .selected_icon {
     cursor: pointer;
     margin-right: 10px;
-    border: 2px solid #03284f;
+    border: 2px solid #021931;
     background-color: rgb(243, 243, 239);
     border-radius: 8px;
     width: 30px;
@@ -444,27 +439,59 @@ select {
 
 .notification_bell {
     position: absolute;
-    top: 50px;
-    right: 60px;
-
-
+    top: 30px; 
+    right: 28px; 
+    z-index: 9999;
 }
 
 .notification_bell img {
     width: 30px;
     height: 30px;
+    cursor: pointer;
 }
 
 .notification_counter {
     color: tomato;
     position: absolute;
-    top: -10px;
-    right: 1px;
+    top: -9px;
+    right: -10px; 
     font-family: Georgia, serif;
+}
 
+.dialog {
+    position: absolute;
+    top: 30px; 
+    right: 20px; 
+    width: 200px;
+    background-color: var(--color-primary);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    color: white;
+    
+}
+
+.dialog_content {
+    position: relative;
+}
+.product-details-link {
+    text-decoration: none;
+    color: white;
+  }
+  
+
+.close_button {
+    position: absolute;
+    top: -10px; 
+    right: -10px;
+    cursor: pointer;
+    color: white;
+    background-color: red;
 }
 
 
+  
 .search_icon {
     width: 20px;
     height: 20px;
@@ -477,10 +504,13 @@ select {
     background-color: red;
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 10px 15px;
     font-size: 16px;
     cursor: pointer;
     border-radius: 5px;
+    text-align: center;
+    width: 40px;
+    height: 40px;
 
 }
 
@@ -526,18 +556,20 @@ select {
 
 
 .ConsulterButton {
-    padding: 20px 20px;
+    padding: 20px 20px; 
+    width: auto;  
+    height: auto; 
     cursor: pointer;
     position: relative;
     background-color: #041172;
     transition: all .2s;
     overflow: hidden;
     border-radius: 10px;
+    text-align: center;
     box-shadow: 0px -0px 0px 0px rgba(242, 242, 191, 0.5), 0px 0px 0px 0px rgba(39, 200, 255, .5);
     font-family: Georgia, serif;
-
-
 }
+
 
 .ConsulterButton a {
     text-decoration: none;
@@ -568,8 +600,42 @@ select {
 }
 
 
-.xls_image{ width:60px;
-    height:60px;
+.xls_image{ width:35px;
+    height:35px;
  cursor: pointer;
  margin-left: -10px;
 margin-top: -30px;}
+
+/* page détail */
+.productDetails {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px;
+  }
+  
+  .productContainer {
+    display: flex;
+    width: 100%;
+    align-items: flex-start; 
+  }
+  
+  .productInfo {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-right: 20px;
+  }
+  
+  .imageChartContainer {
+    display: flex;
+    justify-content: start;
+    align-items: center; 
+  }
+  
+  .chartContainer {
+    margin-left: 400px;
+    font-family: Georgia, serif; 
+  }
+  
+  /* page détail */

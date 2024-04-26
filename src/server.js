@@ -129,10 +129,28 @@ const User = mongoose.model('User', userSchema);
 
 app.post("/api/register", async (req, res) => {
   try {
-    const { nom, prenom, email, adresse, motDePasse, Tel } = req.body;
+    const { nom, prenom, email, adresse, motDePasse, Tel, verificationMotDePasse } = req.body;
+    if (!nom || !prenom || !email || !adresse || !motDePasse || !Tel) {
+      return res.status(400).send("Veuillez remplir tous les champs.");
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).send("Email already in use.");
+      return res.status(409).send("Email déjà utilisé.");
+    }
+
+    if (motDePasse !== verificationMotDePasse) {
+      return res.status(400).send("Les mots de passe ne correspondent pas.");
+    }
+
+    // Validation d'email simple, peut être améliorée avec une regex ou un package de validation d'email
+    if (!email.includes('@')) {
+      return res.status(400).send("Adresse email invalide.");
+    }
+
+    // Validation de la longueur du numéro de téléphone
+    if (Tel.length !== 8) {
+      return res.status(400).send("Numéro de téléphone invalide.");
     }
 
     const emailVerificationToken = crypto.randomBytes(16).toString('hex');
@@ -142,7 +160,7 @@ app.post("/api/register", async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USERNAME,
       to: email,
-      subject: 'Interise.io |Confirm Account Creation',
+      subject: 'Interise.io | Confirmation de création de compte',
       html: `<html>
       <head>
       <style>
@@ -185,11 +203,11 @@ app.post("/api/register", async (req, res) => {
       </style>
       </head>
       <body>
-        <h1>Interise.io | Confirm Your Account</h1>
-        <h3>Hi ${email} ,</h3>
-        <p >Is it you who wants to create an account?</p>
-        <a href="${confirmLink}" class="button" style="color:black">Yes</a>
-        <a href="${rejectLink}" class="button button-red" style="color:black">No</a>
+        <h1>Interise.io | Confirmez votre compte</h1>
+        <h3>Bonjour ${email} ,</h3>
+        <p>Êtes-vous celui qui veut créer un compte?</p>
+        <a href="${confirmLink}" class="button" style="color:black">Oui</a>
+        <a href="${rejectLink}" class="button button-red" style="color:black">Non</a>
       </body>
       </html>
       `
@@ -199,12 +217,13 @@ app.post("/api/register", async (req, res) => {
     await user.save();
     await transporter.sendMail(mailOptions);
 
-    res.status(200).send("Please check your email to confirm account creation.");
+    res.status(200).send("Veuillez vérifier votre email pour confirmer la création de compte.");
   } catch (error) {
-    console.error("Registration error:", error);
-    res.status(500).send("Error registering user: " + error.message);
+    console.error("Erreur lors de l'inscription :", error);
+    res.status(500).send("Erreur lors de l'inscription : " + error.message);
   }
 });
+
 
 app.get('/api/confirm-email', async (req, res) => {
   try {
