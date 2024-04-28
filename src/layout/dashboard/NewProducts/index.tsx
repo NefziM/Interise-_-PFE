@@ -5,8 +5,10 @@ import { Input } from '@components';
 import { DashboardComponents } from '@components';
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
+import ProductDetails from '../ProductDetails';
 import * as XLSX from "xlsx"; 
-import { CategoryScale } from 'chart.js';
+import './newproducts.css'; 
+
 
 interface newProduct {
   Ref: string;
@@ -19,15 +21,17 @@ interface newProduct {
   DiscountAmount: string;
   BrandImage: string;
   Link: string;
-  DateScrapping: Date;
+  DateScrapping: string;
   DateAjout?: Date;
-  AncienPrix?: string;
   Modifications?: Modification[];
-  Category :string;
-  Subcategory:string;
+  Category: string;
+  Subcategory: string;
+  CompanyLogo: string; 
+  Description: string; 
 }
+
 interface Modification {
-  dateModification: Date;
+  dateModification: string;
   ancienPrix:string;
 }
 
@@ -47,7 +51,11 @@ const NewProducts: React.FC = () => {
   const [displayMode, setDisplayMode] = useState<'table' | 'box'>('table');
   const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(null);
 const [dateFilter, setDateFilter] = useState<string | null>('jour');
+const [selectedProduct, setSelectedProduct] = useState<newProduct | null>(null);
 
+const handleProductClick = (product: newProduct) => {
+  setSelectedProduct(product);
+};
 
 useEffect(() => {
   fetchProducts();
@@ -387,11 +395,10 @@ useEffect(() => {
       className={styles.search_icon}/>
       </div>
 
-        <div className={styles.dashboard_cards}>
+        <div className="dashboard_cards">
         
         <DashboardComponents.StatCard
             title="Nouveaux Produits"
-            link={ROUTES.NEWPRODUCTS}
             value={newProductsCount}
             icon="/icons/new.svg"
           />
@@ -402,7 +409,6 @@ useEffect(() => {
           />
             <DashboardComponents.StatCard
             title="Produits hors stock"
-            link={ROUTES.DELETEDPRODUCTS}
             value={deletedProductsCount}
             icon="/images/suppression.png"
           />
@@ -506,7 +512,7 @@ useEffect(() => {
                 <th>Désignation</th>
                 <th>Marque</th>
                 <th>Disponibilité</th>
-                <th>Date </th>
+                <th>Date d'ajout </th>
                 <th>Prix</th>
         
             </thead>
@@ -521,22 +527,13 @@ useEffect(() => {
                       </td>
                       <td>{product.Ref}</td>
                       <td>
-                      <Link
-    className="product-details-link"
-    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
-  >
-    <a
-      href={product.Link}
-      target="_blank"
-      style={{ textDecoration: "none", color: "black" }}
-    >
-      {product.Designation.length > 30
-        ? product.Designation.slice(0, 30) + "..."
-        : product.Designation}
-    </a>
-  </Link>
+                      <div className="product-details-link" key={product.Ref} onClick={() => handleProductClick(product)} style={{ cursor: 'pointer' }}>
+  {product.Designation.length > 30
+    ? product.Designation.slice(0, 30) + "..."
+    : product.Designation}
+</div>
 
-              </td>
+                      </td>
                       <td>{product.Brand}</td>
                       <td>
                       <span style={product.Stock === "En stock" ? { color: "green" } : { color: "red" }}>
@@ -602,6 +599,12 @@ useEffect(() => {
         ) : null}
 
       </div>
+      {selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
     </div>
   );
 };

@@ -7,7 +7,7 @@ import '../Products/productPage.css';
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx"; 
-
+import ProductDetails from '../ProductDetails';
 
 
 interface Product {
@@ -21,16 +21,17 @@ interface Product {
   DiscountAmount: string;
   BrandImage: string;
   Link: string;
-  DateScrapping: Date;
+  DateScrapping: string;
   DateAjout?: Date;
   Modifications?: Modification[];
-  Category :string;
-  Subcategory:string;
-
-
+  Category: string;
+  Subcategory: string;
+  CompanyLogo: string; 
+  Description: string; 
 }
+
 interface Modification {
-  dateModification: Date;
+  dateModification: string;
   ancienPrix:string;
 }
 
@@ -50,8 +51,11 @@ const Update: React.FC = () => {
   const [initialProducts, setInitialProducts] = useState<Product[]>([]);
   const [companyOptions, setCompanyOptions] = useState<string[]>([]); 
   const [dateFilter, setDateFilter] = useState<string | null>('jour');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-
+  const handleProductClick = (product: Product) => {
+    setSelectedProduct(product);
+  };
   useEffect(() => {
     fetchProducts();
     setFetched(50);
@@ -336,62 +340,64 @@ const handlePriceChangeFilter = (changeType: PriceChangeType) => {
     return text.length > maxLength ? text.slice(0, maxLength) + ' ...' : text;
   };
 
- const filterProductsByDateRange = (products: Product[]): Product[] => {
-  if (!dateFilter) return products;
+  const filterProductsByDateRange = (products: Product[]): Product[] => {
+    const currentDate = new Date();
+    let startDate = new Date(currentDate);
   
-  const currentDate = new Date();
-  currentDate.setHours(0, 0, 0, 0); 
-  let endDate = new Date(currentDate.getTime());
-  endDate.setHours(23, 59, 59, 999); 
-
-  switch (dateFilter) {
-    case 'jour':
-      break;
-    case 'semaine':
-      currentDate.setDate(currentDate.getDate() - 7); 
-      break;
-    case 'mois':
-      currentDate.setMonth(currentDate.getMonth() - 1); 
-      break;
-    default:
-      return products; 
-  }
-
-  return products.filter(product => {
-    if (product.Modifications && product.Modifications.length > 0) {
-      const lastModificationDate = new Date(product.Modifications[product.Modifications.length - 1].dateModification);
-      return lastModificationDate >= currentDate && lastModificationDate <= endDate;
+    switch (dateFilter) {
+      case 'jour':
+        startDate.setHours(0, 0, 0, 0);
+        currentDate.setHours(23, 59, 59, 999);
+        break;
+      case 'semaine':
+        startDate.setDate(startDate.getDate() - 7);
+        break;
+      case 'mois':
+        startDate.setMonth(startDate.getMonth() - 1);
+        break;
     }
-    return false; 
-  });
-};
-
-
+  
+    return products.filter(product => {
+      // Use optional chaining and provide a default empty array if Modifications is undefined
+      return product.Modifications?.some(mod => {
+        const modDate = new Date(mod.dateModification);
+        return modDate >= startDate && modDate <= currentDate;
+      }) ?? false; // Return false if Modifications is undefined
+    });
+  };
+  
 
 const getPriceChanges = (products: Product[]) => {
   let priceIncreaseCount = 0;
   let priceDecreaseCount = 0;
+  let noChangeCount = 0;
 
   products.forEach(product => {
     if (product.Modifications && product.Modifications.length > 0) {
       const lastMod = product.Modifications[product.Modifications.length - 1];
-      const oldPrice = parseFloat(lastMod.ancienPrix.replace(',', '.'));
-      const newPrice = parseFloat(product.Price.replace(',', '.'));
+      const oldPrice = parseFloat(lastMod.ancienPrix.replace(/\s/g, '').replace(',', '.'));
+      const newPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
       if (newPrice > oldPrice) {
         priceIncreaseCount++;
       } else if (newPrice < oldPrice) {
         priceDecreaseCount++;
+      } else {
+        noChangeCount++;
       }
     }
   });
 
-  return { priceIncreaseCount, priceDecreaseCount };
+  return { priceIncreaseCount, priceDecreaseCount, noChangeCount };
 };  
-const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
+ 
+const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChanges(products);
 
   return (
+    
     <div className={`${styles.dashboard_content} products_page product-page-inputs`}>
+
     <div className={styles.dashboard_content_container}>
+      
       <div className={styles.dashboard_content_header}>
       <Input
             type="text"
@@ -407,7 +413,6 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
       <div className={styles.dashboard_cards}>
       <DashboardComponents.StatCard
             title="Produits Modifiés"
-            link={ROUTES.UPDATE}
             value={modifiedProductsCount}
             icon="/icons/update.svg"
           />
@@ -418,7 +423,6 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
           />
               <DashboardComponents.StatCard
             title="Produits Hors stock"
-            link={ROUTES.DELETEDPRODUCTS}
             value={deletedProductsCount}
             icon="/images/suppression.png"
           />
@@ -498,6 +502,8 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
 
          
         </div>
+
+        
         <div>
     <img
       src="/icons/lister.svg"
@@ -565,20 +571,13 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
           )}</td>
                   <td>{product.Ref}</td>
                   <td>
-                  <Link
-    className="product-details-link"
-    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
-  >
-  <span
-  style={{ textDecoration: "none", color: "black" }}
->
+                      <div className="product-details-link" key={product.Ref} onClick={() => handleProductClick(product)} style={{ cursor: 'pointer' }}>
   {product.Designation.length > 30
     ? product.Designation.slice(0, 30) + "..."
     : product.Designation}
-</span>
+</div>
 
-  </Link>
-</td>
+                      </td>
 
                   <td>{product.Brand}</td>
                   <td>
@@ -657,10 +656,13 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
                 </div>
               </div>
             ))}
+
+            
           </div>
+          
         )}
 
-        
+      
 
         {products.length > fetched ? (
           <span className={styles.handle_more_button} onClick={__handleLoadMore}>
@@ -668,8 +670,18 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
           </span>
         ) : null}
       </div>
+      {selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
     </div>
+    
+    
   );
+  
 };
+
 
 export default Update;

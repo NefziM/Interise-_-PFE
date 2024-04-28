@@ -66,7 +66,7 @@ export const SideBar = () => {
                   />
                   <span className="sidebar-item-label">Tableau de board</span>
                 </Link>
-                <Link
+                {/*<Link
                 to={ROUTES.COMPETITORS}
                 className={
                   path === ROUTES.COMPETITORS
@@ -80,7 +80,7 @@ export const SideBar = () => {
                   className="sidebar-item-icon"
                 />
                 <span className="sidebar-item-label">Concurrents</span>
-              </Link>
+              </Link>*/}
               <Link
                 to={ROUTES.PRODUCTS}
                 className={
@@ -137,6 +137,7 @@ export const SideBar = () => {
                   src="/icons/logout.svg"
                   alt="icon-logout"
                   className="sidebar-item-icon"
+                  
                 />
               </Link>
             </div>

@@ -51,3 +51,29 @@
     background-color: rgba(255, 0, 0, 0.5);
     z-index: 1;
 }
+
+
+.pagination_controls button {
+    padding: 5px 10px;
+    margin-right: 5px;
+    border: none;
+    background-color: #ddd;
+    cursor: pointer;
+  }
+  
+  .pagination_controls button.disabled,
+  .pagination_controls button:disabled {
+    background-color: #bbb;
+    cursor: not-allowed;
+  }
+  
+  .pagination_controls button.active_page {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  .page_size_selector select {
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+  }
+  

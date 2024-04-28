@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Chart from 'chart.js/auto';
-import './Productdetails.css'; // Import du fichier CSS
+import './Productdetails.css'; 
 import { FaTimes } from 'react-icons/fa';
-
 Chart.defaults.font.family = 'Georgia, serif';
+
 
 interface Product {
   Ref: string;
@@ -79,7 +79,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product, onClose }) => 
                 stepSize: 500, // Incrément de l'axe y
                 callback: function(tickValue: string | number, index: number, ticks: any[]) {
                   if (typeof tickValue === 'number') {
-                    return (tickValue).toString(); // Convertit les valeurs en chaînes de caractères
+                    return (tickValue).toString(); 
                   }
                   return tickValue;
                 }
@@ -102,27 +102,43 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product, onClose }) => 
             <br />
             <div className="productContent">
               <div className="imageChartContainer">
-                <img src={product.Image} alt={product.Designation} className="productImage" />
+                <img src={product.Image} alt={product.Designation} className="productImage" style={{width:'200px',height:'200px'}} />
                 <div className="chartContainer">
-                  <canvas id="priceChart" width="600" height="150"></canvas>
+                  <canvas id="priceChart" width="600" height="300"></canvas>
                 </div>
               </div>
               <div className="details">
                 <h4>Référence : {product.Ref}</h4>
                 <h2>{product.Designation}</h2>
-                <p style={{ color: "red" }}>
-                  <b>{product.Price}</b>
-                  {product.Modifications && product.Modifications.length > 0 && (
-                    <span style={{ textDecoration: "line-through", color: "gray" }}>
-                      {product.Modifications[product.Modifications.length - 1].ancienPrix}
+                 <div>
+                <p style={{ display: 'inline-block', marginRight: '30px', color:"red" }}>
+                  <b>
+                    <span style={{ fontSize: '24px' }}>
+                      {product.Price.split(',')[0]}
                     </span>
-                  )}
+                    <span style={{ fontSize: '18px' }}>
+                      {',' + product.Price.split(',')[1]}
+                    </span>
+                  </b>
                 </p>
+                {product.Modifications && product.Modifications.length > 0 && (
+                  <p style={{ display: 'inline-block' }}>
+                    <span style={{ textDecoration: "line-through", color: "gray" }}>
+                      <span style={{ fontSize: '20px' }}>
+                        {product.Modifications[product.Modifications.length - 1].ancienPrix.split(',')[0]}
+                      </span>
+                      <span style={{ fontSize: '14px' }}>
+                        {',' + product.Modifications[product.Modifications.length - 1].ancienPrix.split(',')[1]}
+                      </span>
+                    </span>
+                  </p>
+                )}
+              </div>
                 <p>{product.Description}</p>
                 <p>Disponibilité : <span style={{ color: product.Stock === "En stock" ? 'green' : 'red' }}>{product.Stock}</span></p>
                 <div className="logos">
-                  <img src={product.CompanyLogo} alt={product.Company} style={{ maxWidth: '120px', backgroundColor: '#DCDCE7' }} />
-                  <img src={product.BrandImage} alt={product.Brand} style={{ maxWidth: '80px', marginLeft: '10px' }} />
+                  <img src={product.CompanyLogo} alt={product.Company} style={{width:'80px',height:'40px' ,backgroundColor: '#DCDCE7' }} />
+                  <img src={product.BrandImage} alt={product.Brand} style={{ width: '80px',height:'40px' , marginLeft: '10px' }} />
                 </div>
                 <br />
                 <div style={{ textAlign: "center" }}>
