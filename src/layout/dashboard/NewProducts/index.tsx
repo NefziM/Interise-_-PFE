@@ -479,18 +479,20 @@ useEffect(() => {
       className={displayMode === 'box' ? styles.selected_icon : styles.icon}
     />
   </div>
+  <button onClick={exportToXLS} className={styles.exportButton}>
+  Exporter en xls 
   <img
-      className={styles.xls_image}
-  src="/images/xls.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-/><img
-      className={styles.xls_image}
-  src="/images/telecharger.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-  style={{width:'15px',height:'15px',marginLeft:'7px'}}
-/>
+    src="/images/xls.png"
+    alt="Exporter en XLS"
+    className={styles.xls_image}
+  />
+  <img
+    src="/images/telecharger.png"
+    alt="Télécharger"
+    className={styles.telecharger_image}
+  />
+</button>
+
   <tr></tr>
   {loadingProducts ? (
   <p style={{ textAlign: "center" }}><b>Veuillez patienter...</b></p>

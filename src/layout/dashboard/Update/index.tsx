@@ -283,6 +283,32 @@ const Update: React.FC = () => {
   
  
 
+
+
+
+  const calculatePriceChange = (product: Product) => {
+    if (!product.Modifications || product.Modifications.length === 0) return 0;
+    const lastModification = product.Modifications[product.Modifications.length - 1];
+    const oldPrice = parseFloat(lastModification.ancienPrix.replace(/\s/g, '').replace(',', '.'));
+    const newPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+    const priceChange = newPrice - oldPrice;
+    console.log(`Price change for ${product.Ref}:`, priceChange);
+    return Math.round(priceChange * 100) / 100;
+  };
+  
+
+  type PriceChangeType = 'increase' | 'decrease';
+
+const handlePriceChangeFilter = (changeType: PriceChangeType) => {
+  const filteredProducts = initialProducts.filter((product) => {
+    const priceChange = calculatePriceChange(product);
+    return (changeType === 'increase' && priceChange > 0) || (changeType === 'decrease' && priceChange < 0);
+  });
+  setProducts(filteredProducts);
+};
+
+  
+  
   const filteredProductsByAvailability = availabilityFilter
       ? availabilityFilter === "available"
         ? products.filter(
@@ -340,7 +366,28 @@ const Update: React.FC = () => {
   });
 };
 
-  
+
+
+const getPriceChanges = (products: Product[]) => {
+  let priceIncreaseCount = 0;
+  let priceDecreaseCount = 0;
+
+  products.forEach(product => {
+    if (product.Modifications && product.Modifications.length > 0) {
+      const lastMod = product.Modifications[product.Modifications.length - 1];
+      const oldPrice = parseFloat(lastMod.ancienPrix.replace(',', '.'));
+      const newPrice = parseFloat(product.Price.replace(',', '.'));
+      if (newPrice > oldPrice) {
+        priceIncreaseCount++;
+      } else if (newPrice < oldPrice) {
+        priceDecreaseCount++;
+      }
+    }
+  });
+
+  return { priceIncreaseCount, priceDecreaseCount };
+};  
+const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
 
   return (
     <div className={`${styles.dashboard_content} products_page product-page-inputs`}>
@@ -379,6 +426,16 @@ const Update: React.FC = () => {
             title="Produits sur commandes"
             value={unavailableProductsCount}
             icon="/icons/product.svg"
+          />
+           <DashboardComponents.StatCard
+            title="Produits avec augmentation de prix"
+            value={priceIncreaseCount}
+            icon="/images/plus.png"
+          />
+          <DashboardComponents.StatCard
+            title="Produits avec diminution de prix"
+            value={priceDecreaseCount}
+            icon="/images/moins.png"
           />
      
     
@@ -428,7 +485,15 @@ const Update: React.FC = () => {
               <option value="horstock">Hors stock</option>
               <option value="unavailable">Sur commande</option>
             </select>
-          </div>
+          </div>          <div className={styles.filter_group}>
+
+          <select onChange={(e) => handlePriceChangeFilter(e.target.value as PriceChangeType)}>
+  <option value="">changement de prix</option>
+  <option value="increase">Augmentation de prix</option>
+  <option value="decrease">Diminution de prix</option>
+</select></div>
+
+
           <button className={styles.reset_button} onClick={handleResetFilters}><b>X</b></button>
 
          
@@ -447,18 +512,20 @@ const Update: React.FC = () => {
       className={displayMode === 'box' ? styles.selected_icon : styles.icon}
     />
   </div>
+  <button onClick={exportToXLS} className={styles.exportButton}>
+  Exporter en xls 
   <img
-      className={styles.xls_image}
-  src="/images/xls.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-/><img
-      className={styles.xls_image}
-  src="/images/telecharger.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-  style={{width:'15px',height:'15px',marginLeft:'7px'}}
-/>
+    src="/images/xls.png"
+    alt="Exporter en XLS"
+    className={styles.xls_image}
+  />
+  <img
+    src="/images/telecharger.png"
+    alt="Télécharger"
+    className={styles.telecharger_image}
+  />
+</button>
+
   <tr></tr>
   {loadingProducts ? (
   <p style={{ textAlign: "center" }}><b>Veuillez patienter...</b></p>
@@ -475,9 +542,13 @@ const Update: React.FC = () => {
                 <th>Ancien Prix</th>
                 <th>Date Nouveau Prix</th>
                 <th>Prix</th>
+                <th>Écart Prix</th>
+
             </thead>
             <tbody>
-            {filteredProducts.map((product, index) => (
+            {filteredProducts.map((product, index) => {
+    const priceChange = calculatePriceChange(product);
+    return (
                 <tr key={index}>
                   <td>
                 {product.Modifications && product.Modifications.length > 0 && 
@@ -526,9 +597,14 @@ const Update: React.FC = () => {
   : 'Pas de modifications'}
 </td>
  <td>{product.Price}</td>
-     
+ <td style={{ color: priceChange >= 0 ? 'green' : 'red' }}>
+  {priceChange >= 0 ? `+${priceChange}` : priceChange}
+</td>
+
+
                 </tr>
-              ))}
+    );
+})}
             </tbody>
           </table>
         ) : (

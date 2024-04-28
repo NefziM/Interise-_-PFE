@@ -518,17 +518,7 @@ select {
     background-color: darkred;
 }
 
-.productDetails {
-    display: flex;
-    padding: 10px;
-    margin: 100px;
-    position: absolute;
-    margin-top: 30px;
-    margin-left: 200px;
 
-
-
-}
 
 
 
@@ -541,10 +531,11 @@ select {
 
 .productInfo {
     flex: 2;
-    background-color: #ffffff;
+    background-color: #eef1f4;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-shadow: 10px 5px 8px rgba(0, 0, 0, 0.1);
+    height:700px;
 }
 
 .categoryInfo {
@@ -598,44 +589,38 @@ select {
     transform: translate(0, -6px);
     box-shadow: 10px -10px 25px 0px rgba(143, 64, 248, .25), -10px 10px 25px 0px rgba(39, 200, 255, .25);
 }
+.exportButton {
+    background-color: #0f0740;  
+    border: none;
+    cursor: pointer;
+    padding: 4px;               
+    display: inline-flex;      
+    align-items: center;     
+    justify-content: center;     
+    border-radius: 3px;        
+    color: white;               
+    font-size: 15px;    
+    width: 150px;   
+    height: 40px;   
+    margin-top: -25px;   
+}
 
+.xls_image, .telecharger_image {
+    display: inline-block;       
+    vertical-align: middle;     
+}
 
-.xls_image{ width:35px;
-    height:35px;
- cursor: pointer;
- margin-left: -10px;
-margin-top: -30px;}
+.xls_image {
+    width: 20px;              
+    height: 20px;                
+    margin-right: 2px;  }         
 
-/* page détail */
-.productDetails {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 20px;
-  }
+.telecharger_image {
+    width: 10px;               
+    height: 10px;                
+    margin-left: -8px;
+    margin-top: 17px;           
+}
+
   
-  .productContainer {
-    display: flex;
-    width: 100%;
-    align-items: flex-start; 
-  }
-  
-  .productInfo {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    margin-right: 20px;
-  }
-  
-  .imageChartContainer {
-    display: flex;
-    justify-content: start;
-    align-items: center; 
-  }
-  
-  .chartContainer {
-    margin-left: 400px;
-    font-family: Georgia, serif; 
-  }
-  
-  /* page détail */
+

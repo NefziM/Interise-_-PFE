@@ -22,7 +22,7 @@ const DashboardPage: React.FC = () => {
             <Route path="competitors" element={<Competitors />} />
             <Route path="newproduct" element={<NewProducts />} />
             <Route path="update" element={<Update />} />
-            <Route path="productdetails/:productId" element={<ProductDetails />} />
+            
 
 
 

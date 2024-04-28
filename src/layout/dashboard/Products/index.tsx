@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx"; 
+import ProductDetails from '../ProductDetails';
 interface Product {
   Ref: string;
   Designation: string;
@@ -18,17 +19,23 @@ interface Product {
   DiscountAmount: string;
   BrandImage: string;
   Link: string;
-  DateScrapping: Date;
+  DateScrapping: string;
   DateAjout?: Date;
   Modifications?: Modification[];
-  Category :string;
-  Subcategory:string;
-}
-interface Modification {
-  dateModification: Date;
-  ancienPrix:string;
+  Category: string;
+  Subcategory: string;
+  CompanyLogo: string; 
+  Description: string; 
 }
 
+interface Modification {
+  dateModification: string;
+  ancienPrix:string;
+}
+const getCurrentDate = () => {
+  const today = new Date();
+  return today.toLocaleDateString('fr-FR'); 
+};
 const Products: React.FC = () => {
   const [search, setSearch] = useState<string>("");
   const [page, setPage] = useState<number>(1);
@@ -43,7 +50,6 @@ const Products: React.FC = () => {
   );
   const [availableProductsCount, setAvailableProductsCount] = useState(0);
 const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
-
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [priceFilter, setPriceFilter] = useState<string | null>(null);
@@ -59,15 +65,16 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
   const [modifiedProductsCount, setModifiedProductsCount] = useState(0);
   const [deletedProductsCount, setDeletedProductsCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
-
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const handleProductClick = (product: Product) => {
+    setSelectedProduct(product);
+  };
   const today = useMemo(() => new Date(), []);
-
   const filterProductsByArrivalDate = (filterType: "new" | "old") => {
     const filteredProducts = initialProducts.filter((product: Product) => {
       const productDate = new Date(product.DateScrapping);
       const todayDate = today.getTime();
       const productDateTime = productDate.getTime();
-
       if (filterType === "new") {
         return productDateTime >= todayDate;
       } else {
@@ -76,15 +83,13 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
     });
     setProducts(filteredProducts);
   };
-  
   const toggleDialog = () => {
     setDialogOpen(!dialogOpen);
   };
-  
   const DialogContent = () => (
     <div className={styles.dialog_content}>
       <span className={styles.close_button} onClick={toggleDialog}><b>×</b></span>
-  
+     Le : {getCurrentDate()}
       <p>
         <Link
           className="product-details-link"
@@ -105,13 +110,10 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
       </p>
     </div>
   );
-  
-
   useEffect(() => {
     fetchProducts();
     setFetched(50);
   }, [page, pageSize]); 
-
   const fetchProducts = useCallback(() => {
     setLoadingProducts(true);
     axios.get("http://localhost:5000/api/products", {
@@ -135,27 +137,22 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
     let outOfStockProductsSet = new Set();
     let availableProductsCount = 0;
     let unavailableProductsCount = 0;
-  
     productsToCalculate.forEach((product) => {
         if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today.setHours(0, 0, 0, 0)) {
             newProductsSet.add(product.Ref);
         }
-  
         if (product.Modifications && product.Modifications.some(mod => new Date(mod.dateModification).setHours(0, 0, 0, 0) === today.setHours(0, 0, 0, 0))) {
             modifiedProductsSet.add(product.Ref);
         }
-  
         if (product.Stock === "Hors stock") {
             outOfStockProductsSet.add(product.Ref);
         }
-  
         if (product.Stock === "En stock") {
             availableProductsCount++;
         } else if (product.Stock === "Sur commande") {
             unavailableProductsCount++;
         }
-    });
-  
+    }); 
     setTotalProducts(productsToCalculate.length);
     setNewProductsCount(newProductsSet.size);
     setModifiedProductsCount(modifiedProductsSet.size);
@@ -163,11 +160,8 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
     setAvailableProductsCount(availableProductsCount);
     setUnavailableProductsCount(unavailableProductsCount);
   };
-  
-
   const extractCategories = (products: Product[]) => {
     const categories: { [key: string]: string[] } = {};
-
     products.forEach((product) => {
       if (!categories[product.Category]) {
         categories[product.Category] = [product.Subcategory];
@@ -177,14 +171,11 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
         }
       }
     });
-
     return categories;
   };
-
   const categories = useMemo(() => extractCategories(initialProducts), [
     initialProducts,
   ]);
-
   const handleCategoryChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
@@ -204,11 +195,6 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
     },
     [initialProducts, calculateStatistics]  
   );
-  
-  
-
-
- 
   const exportToXLS = useCallback(() => {
     const filteredProducts = initialProducts.filter(product => {
         const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
@@ -217,9 +203,7 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
           (availabilityFilter === "available" && product.Stock === "En stock") ||
           (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
           (availabilityFilter === "horstock" && product.Stock === "Hors stock");
-
         const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
-
         const categoryFilterElement = document.getElementById("categoryFilter") as HTMLSelectElement;
         const selectedCategoryValue = categoryFilterElement ? categoryFilterElement.value : "";
         let meetsCategoryCriteria = true;
@@ -227,21 +211,17 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
           const [selectedCategory, selectedSubcategory] = selectedCategoryValue.split("-");
           meetsCategoryCriteria = product.Category === selectedCategory && product.Subcategory === selectedSubcategory;
         }
-
         return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria && meetsCategoryCriteria;
     });
-
     if (priceFilter === 'asc') {
         filteredProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
     } else if (priceFilter === 'desc') {
         filteredProducts.sort((a, b) => parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')));
     }
-
     const data = filteredProducts.map(product => {
         const latestModification = product.Modifications && product.Modifications.length > 0
             ? product.Modifications[product.Modifications.length - 1]
             : null;
-
         return {
             Ref: product.Ref,
             Designation: product.Designation,
@@ -259,19 +239,13 @@ const [arrivalDateFilter, setArrivalDateFilter] = useState<string | null>(
             DateModification: latestModification ? new Date(latestModification.dateModification).toLocaleDateString() : " "
         };
     });
-
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Produits");
-
     const today = new Date();
     const filename = `Products_${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}.xlsx`;
-
     XLSX.writeFile(wb, filename);
 }, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter]);
-
-  
-
 const handleSearch = useCallback(
   (event: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = event.target;
@@ -307,34 +281,26 @@ const handleCompanyChange = useCallback(
   },
   [products, initialProducts, calculateStatistics]
 );
-
-
   const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMinPrice(value);
     filterProducts(value, maxPrice, "min");
 };
-
 const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMaxPrice(value);
     filterProducts(minPrice, value, "max");
 };
-
 const filterProducts = (min: string, max: string, filterType: "min" | "max") => {
     const minPriceValue = parseFloat(min.replace(/\s/g, "").replace(",", "."));
     const maxPriceValue = parseFloat(max.replace(/\s/g, "").replace(",", "."));
-
     const filteredProducts = products.filter((product: Product) => {
       const price = parseFloat(product.Price.replace(/\s/g, "").replace(",", "."));
       return filterType === "min" ? price >= minPriceValue : price <= maxPriceValue;
     });
-
     setProducts(filteredProducts);
     calculateStatistics(filteredProducts);
 };
-
-
   const handlePriceFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
@@ -342,12 +308,10 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
     },
     []
   );
-
   const handleAvailabilityFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
       setAvailabilityFilter(value);
-      
       let filteredProducts = initialProducts; 
       if (value === "available") {
         filteredProducts = initialProducts.filter(product => product.Stock === "En stock");
@@ -356,12 +320,10 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
       } else if (value === "horstock") {
         filteredProducts = initialProducts.filter(product => product.Stock === "Hors stock");
       }
-  
       setProducts(filteredProducts); 
     },
     [initialProducts]
   );
-  
   const applyPriceFilter = (filteredProducts: Product[]) => {
     const sortedProducts = [...filteredProducts];
     if (priceFilter === "asc") {
@@ -372,11 +334,9 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
       return sortedProducts;
     }
   };
-
   const filteredProductsByCompany = selectedCompany
     ? products.filter((product) => product.Company === selectedCompany)
     : products;
-
   const filteredProductsByPrice =
     minPrice !== "" && maxPrice !== ""
       ? filteredProductsByCompany.filter((product) => {
@@ -388,7 +348,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
           return price >= min && price <= max;
         })
       : filteredProductsByCompany;
-
       const filteredProductsByAvailability = availabilityFilter
       ? availabilityFilter === "available"
         ? products.filter(
@@ -404,17 +363,13 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
               )
             : products  
        : products;
-     
     const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
-    
-  
   const __handleLoadMore = () => {
     if (products.length > fetched) {
       const newFetched = fetched + 50;
       setFetched(newFetched);
     }
   };
-  
   const resetFilters = useCallback(() => {
     setSearch("");
     setPage(1);
@@ -430,14 +385,10 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
     if (categoryFilterElement) {
       categoryFilterElement.selectedIndex = 0; 
     }
-    
   }, [initialProducts]);
-
   const handleResetFilters = () => {
     resetFilters();
   };
-  
-  
   return (
     <div
       className={`${styles.dashboard_content} products_page product-page-inputs`}
@@ -452,7 +403,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
           />
           <img src="/icons/search.gif" className={styles.search_icon} />
         </div>
-
         <div className={styles.dashboard_cards}>
           <DashboardComponents.StatCard
             title="Tous les Produits"
@@ -461,14 +411,12 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             icon="/icons/product.svg"
           />
             <DashboardComponents.StatCard
-            title="Nouveaux Produits"
-            link={ROUTES.NEWPRODUCTS}
+            title={`Nouveaux Produits (${getCurrentDate()})`}
             value={newProductsCount}
             icon="/icons/new.svg"
           />
           <DashboardComponents.StatCard
-            title="Produits Modifiés"
-            link={ROUTES.UPDATE}
+            title={`Produits Modifiés (${getCurrentDate()})`}
             value={modifiedProductsCount}
             icon="/icons/update.svg"
           />
@@ -477,7 +425,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             value={availableProductsCount}
             icon="/icons/product.svg"
           />
-       
                  <DashboardComponents.StatCard
             title="Produits Hors Stock"
             link={ROUTES.DELETEDPRODUCTS}
@@ -488,14 +435,10 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             title="Produits sur commandes"
             value={unavailableProductsCount}
             icon="/icons/product.svg"
-          />
-        
-   
+          />  
         </div>
-
         <div className={styles.filter_container}>
-          <div className={styles.filter_group}>
-       
+          <div className={styles.filter_group}>       
             <select
               value={selectedCompany || "All"}
               onChange={handleCompanyChange}
@@ -509,7 +452,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             </select>
           </div>
           <div className={styles.filter_group}>
-
           <select id="categoryFilter" onChange={handleCategoryChange}>
   <option value="" style={{color:'gray'}}>Filtrer par catégorie</option>
   {Object.keys(categories).map((category) => (
@@ -522,7 +464,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
     </optgroup>
   ))}
 </select>
-
           </div>
           <div className={styles.filter_group}>
             <input
@@ -532,7 +473,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
               onChange={handleMinPriceChange}
             />
           </div>
-
           <div className={styles.filter_group}>
             <input
               type="number"
@@ -541,7 +481,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
               onChange={handleMaxPriceChange}
             />
           </div>
-
           <div className={styles.filter_group}>
             <select
               value={priceFilter || ""}
@@ -552,9 +491,7 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
               <option value="desc"> Décroissant</option>
             </select>
           </div>
-
-          <div className={styles.filter_group}>
-        
+          <div className={styles.filter_group}>       
             <select
               value={availabilityFilter || ""}
               onChange={handleAvailabilityFilterChange}
@@ -566,7 +503,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             </select>
           </div>
           <button className={styles.reset_button} onClick={handleResetFilters}><b>X</b></button>
-
         </div>
         <div>
           <img
@@ -586,19 +522,19 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
             }
           />
         </div>
-        <img
-      className={styles.xls_image}
-  src="/images/xls.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-/>
-<img
-      className={styles.xls_image}
-  src="/images/telecharger.png"
-  alt="Exporter en XLS"
-  onClick={exportToXLS}
-  style={{width:'15px',height:'15px',marginLeft:'7px'}}
-/>
+        <button onClick={exportToXLS} className={styles.exportButton}>
+  Exporter en xls 
+  <img
+    src="/images/xls.png"
+    alt="Exporter en XLS"
+    className={styles.xls_image}
+  />
+  <img
+    src="/images/telecharger.png"
+    alt="Télécharger"
+    className={styles.telecharger_image}
+  />
+</button>
         <tr></tr>
         {loadingProducts ? (
           <p style={{ textAlign: "center" }}>
@@ -620,7 +556,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
               <th>Date </th>
               <th>Prix</th>
             </thead>
-
             {filteredProducts.length > 0 ? (
               <tbody>
                 {filteredProducts
@@ -683,32 +618,20 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
                         marginLeft: "-15px",
                         marginTop:"-80px",
                         borderRadius: "2px",
-
                       }}
                     >
                       <b>{product.DiscountAmount}</b>
                     </div>
                   )}
                 </p>
-            
-                        
                       </td>
                       <td>{product.Ref}</td>
                       <td>
-                      <Link
-    className="product-details-link"
-    to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
-  >
-    <a
-      href={product.Link}
-      target="_blank"
-      style={{ textDecoration: "none", color: "black" }}
-    >
-      {product.Designation.length > 30
-        ? product.Designation.slice(0, 30) + "..."
-        : product.Designation}
-    </a>
-  </Link>
+                      <div className="product-details-link" key={product.Ref} onClick={() => handleProductClick(product)} style={{ cursor: 'pointer' }}>
+  {product.Designation.length > 30
+    ? product.Designation.slice(0, 30) + "..."
+    : product.Designation}
+</div>
 
                       </td>
                       <td>{product.Brand}</td>
@@ -723,13 +646,11 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
                           {product.Stock}
                         </span>
                       </td>
-
                       <td>
                       {product.Modifications && product.Modifications.length > 0
     ? product.Modifications[product.Modifications.length - 1].ancienPrix
     : '--'}
 </td>
-
 <td>
   {product.DateAjout && new Date(product.DateAjout).toLocaleDateString() === new Date().toLocaleDateString() ?
     new Date(product.DateAjout).toLocaleDateString() :
@@ -740,12 +661,7 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
         "No date available"))
   }
 </td>
-
-
-
-
                       <td>{product.Price}</td>
-          
                     </tr>
                   ))}
               </tbody>
@@ -786,8 +702,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
     alt="Updated Product"
   />
 )}
-
-            
               {product.Stock ==  "Hors stock" && (
                 <img
                   className={styles.new_product_overlay}
@@ -815,7 +729,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
                     </div>
                   )}
                 </p>
-            
                 <p> {product.Ref}</p>
                 <h3>
                   <a  href={product.Link} target="_blank"  style={{ color: "#140863" }}
@@ -825,7 +738,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
                       : product.Designation}
                   </a>
                 </h3>
-            
                 <p>
                   <img
                     src={product.BrandImage}
@@ -853,18 +765,12 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
                 <Link
   className="product-details-link"
   to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
->
-  Voir plus
-</Link>
-
+>Voir plus</Link>
               </div>
             </div>
-            
-           
             ))}
           </div>
         )}
-
         {products.length > fetched ? (
           <span
             className={styles.handle_more_button}
@@ -874,7 +780,6 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
           </span>
         ) : null}
         <div className={styles.notification_bell}>
-  
         <img
     src="/icons/notification-bell.gif"
     alt="Notification Bell"
@@ -885,7 +790,12 @@ const filterProducts = (min: string, max: string, filterType: "min" | "max") => 
   <b>{newProductsCount + modifiedProductsCount}</b>
     </span>
   )}
-
+ {selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
 
 {dialogOpen && (
   <div className={styles.dialog}>

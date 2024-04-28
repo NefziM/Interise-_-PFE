@@ -33,6 +33,12 @@ interface Modification {
   ancienPrix: string;
 }
 
+const getCurrentDate = () => {
+  const today = new Date();
+  return today.toLocaleDateString('fr-FR'); 
+};
+
+
 export const Dashboard = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [newProductsCount, setNewProductsCount] = useState(0);
@@ -108,7 +114,7 @@ export const Dashboard = () => {
           datasets: [{
             label: 'En stock',
             data: Object.values(competitorsStats).map(stats => stats.inStock),
-            backgroundColor: 'green'
+            backgroundColor: '#006400	'
           }, {
             label: 'Hors stock',
             data: Object.values(competitorsStats).map(stats => stats.outOfStock),
@@ -116,7 +122,7 @@ export const Dashboard = () => {
           }, {
             label: 'Sur commande',
             data: Object.values(competitorsStats).map(stats => stats.onOrder),
-            backgroundColor: 'orange'
+            backgroundColor: '#FFD700	'
           }]
         },
         options: {
@@ -130,75 +136,92 @@ export const Dashboard = () => {
     }
   };
 
+  const formatDate = (dateString: string): string => {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+  };
+  
   const drawNewProductsChart = (products: Product[]) => {
     const newProductsPerDay: Record<string, number> = {};
     products.forEach((product: Product) => {
-      const ajoutDate = product.DateAjout ? new Date(product.DateAjout).toDateString() : "";
-      newProductsPerDay[ajoutDate] = (newProductsPerDay[ajoutDate] || 0) + 1;
+      const ajoutDate = product.DateAjout ? formatDate(new Date(product.DateAjout).toDateString()) : "";
+      if (ajoutDate) {
+        newProductsPerDay[ajoutDate] = (newProductsPerDay[ajoutDate] || 0) + 1;
+      }
     });
-
+  
+    const sortedDates = Object.keys(newProductsPerDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    const recentDates = sortedDates.slice(Math.max(sortedDates.length - 7, 0));
+  
     const ctx = document.getElementById('newProductsChart') as HTMLCanvasElement;
     if (ctx) {
       new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: Object.keys(newProductsPerDay),
-          datasets: [
-            {
-              label: 'Nouveaux Produits ',
-              data: Object.values(newProductsPerDay),
-              borderColor: 'blue',
-              fill: false
+     
+            type: 'line',
+            data: {
+                labels: recentDates,
+                datasets: [
+                    {
+                        label: 'Nouveaux Produits',
+                        data: recentDates.map(date => newProductsPerDay[date]),
+                        borderColor: '#00008B',
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
             }
-          ]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
-        }
-      });
-    }
-  };
-
-  const drawModifiedProductsChart = (products: Product[]) => {
-    const modifiedProductsPerDay: Record<string, number> = {};
-    products.forEach((product: Product) => {
-      if (product.Modifications && product.Modifications.length > 0) {
-        product.Modifications.forEach(mod => {
-          const modifDate = mod.dateModification ? new Date(mod.dateModification).toDateString() : "";
-          modifiedProductsPerDay[modifDate] = (modifiedProductsPerDay[modifDate] || 0) + 1;
         });
-      }
-    });
+    }
+};
 
-    const ctx = document.getElementById('modifiedProductsChart') as HTMLCanvasElement;
-    if (ctx) {
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: Object.keys(modifiedProductsPerDay),
-          datasets: [
-            {
-              label: 'Produits Modifiés ',
-              data: Object.values(modifiedProductsPerDay),
-              borderColor: 'purple',
-              fill: false
-            }
-          ]
-        },
-        options: {
-          scales: {
-            y: {
-              beginAtZero: true
-            }
-          }
+const drawModifiedProductsChart = (products: Product[]) => {
+  const modifiedProductsPerDay: Record<string, number> = {};
+  products.forEach((product: Product) => {
+    if (product.Modifications) {
+      product.Modifications.forEach(mod => {
+        const modifDate = mod.dateModification ? formatDate(new Date(mod.dateModification).toDateString()) : "";
+        if (modifDate) {
+          modifiedProductsPerDay[modifDate] = (modifiedProductsPerDay[modifDate] || 0) + 1;
         }
       });
     }
-  };
+  });
+
+  const sortedDates = Object.keys(modifiedProductsPerDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  const recentDates = sortedDates.slice(Math.max(sortedDates.length - 7, 0));
+
+  const ctx = document.getElementById('modifiedProductsChart') as HTMLCanvasElement;
+  if (ctx) {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: recentDates,
+                datasets: [
+                    {
+                        label: 'Produits Modifiés',
+                        data: recentDates.map(date => modifiedProductsPerDay[date]),
+                        borderColor: '#6495ED',
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+};
 
  
 
@@ -221,13 +244,13 @@ export const Dashboard = () => {
             value={totalProducts}
             icon="/icons/product.svg"
           />
-          <DashboardComponents.StatCard
-            title="Nouveaux Produits"
+         <DashboardComponents.StatCard
+            title={`Nouveaux Produits (${getCurrentDate()})`}
             value={newProductsCount}
             icon="/icons/new.svg"
           />
           <DashboardComponents.StatCard
-            title="Produits Modifiés"
+            title={`Produits Modifiés (${getCurrentDate()})`}
             value={modifiedProductsCount}
             icon="/icons/update.svg"
           />
