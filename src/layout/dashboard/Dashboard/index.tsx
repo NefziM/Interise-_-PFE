@@ -6,6 +6,7 @@ import { ROUTES } from "@utils";
 import styles from "../dashboard.module.css";
 import './dashboard.css'; 
 import { Route } from "react-router-dom";
+import { FiArrowUp, FiArrowDown } from 'react-icons/fi'; 
 
 
 interface Product {
@@ -47,6 +48,8 @@ export const Dashboard = () => {
   const [newProductsCount, setNewProductsCount] = useState(0);
   const [modifiedProductsCount, setModifiedProductsCount] = useState(0);
   const [initialProducts, setInitialProducts] = useState<Product[]>([]);
+  const [priceIncreaseCount, setPriceIncreaseCount] = useState(0);
+  const [priceDecreaseCount, setPriceDecreaseCount] = useState(0);
 
   useEffect(() => {
     fetchProducts();
@@ -61,22 +64,35 @@ export const Dashboard = () => {
       const today = new Date().setHours(0, 0, 0, 0);
       let newProductsSet = new Set<string>();
       let modifiedProductsSet = new Set<string>();
-
+      let priceIncreases = 0;
+      let priceDecreases = 0;
       products.forEach((product: Product) => {
         if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today) {
           newProductsSet.add(product.Ref);
         }
         if (product.Modifications && product.Modifications.some(mod => new Date(mod.dateModification).setHours(0, 0, 0, 0) === today)) {
           modifiedProductsSet.add(product.Ref);
+
+          product.Modifications.forEach(modification => {
+            if (modification.ancienPrix) {
+              const previousPrice = parseFloat(modification.ancienPrix.replace(/[^\d\.]/g, ""));
+              const currentPrice = parseFloat(product.Price.replace(/[^\d\.]/g, ""));
+
+              if (currentPrice > previousPrice) {
+                priceIncreases++;
+              } else if (currentPrice < previousPrice) {
+                priceDecreases++;
+              }
+            }
+          });
         }
-        
-        
       });
 
       setTotalProducts(products.length);
       setNewProductsCount(newProductsSet.size);
       setModifiedProductsCount(modifiedProductsSet.size);
-      
+      setPriceIncreaseCount(priceIncreases);
+      setPriceDecreaseCount(priceDecreases);
       drawAvailabilityChart (products);
 
       drawNewProductsChart(products);
@@ -446,6 +462,8 @@ const drawMostModifiedProductsChart = (products: Product[]) => {
             value={modifiedProductsCount}
             link={ROUTES.UPDATE}
             icon="/icons/update.svg"
+            increaseCount={priceIncreaseCount} // Passer le nombre de produits augmentés
+            decreaseCount={priceDecreaseCount} // Passer le nombre de produits diminués
           />
           <DashboardComponents.StatCard
             title="Produits En Stock"

@@ -45,3 +45,38 @@
     width: 20px;
     height: 20px;
 }
+.stat_card_change_counts {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-left: 300px;
+    margin-top: 50px;
+    position: absolute;
+  }
+  
+  .increase_icon{
+    width: 20px;
+    height: 20px;
+    color: rgb(16, 127, 71);
+  }
+  .decrease_icon {
+    width: 20px;
+    height: 20px;
+    color: brown;
+  }
+  
+  .increase_count,
+  .decrease_count {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--color-black);
+  }
+  .stat_card_change_counts p {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--color-primary);
+    margin-right: 0.5rem; /* Ajustement de la marge */
+}
+
+  
