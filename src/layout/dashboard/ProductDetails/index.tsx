@@ -98,6 +98,9 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product, onClose }) => 
       {product ? (
         <div className="productContainer">
           <div className="productInfo">
+          <div className="closeIcon" onClick={onClose}>
+        <FaTimes size={30}  />
+      </div>
             <br />
             <br />
             <div className="productContent">
@@ -138,7 +141,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product, onClose }) => 
                 <p>Disponibilité : <span style={{ color: product.Stock === "En stock" ? 'green' : 'red' }}>{product.Stock}</span></p>
                 <div className="logos">
                   <img src={product.CompanyLogo} alt={product.Company} style={{width:'80px',height:'40px' ,backgroundColor: '#DCDCE7' }} />
-                  <img src={product.BrandImage} alt={product.Brand} style={{ width: '80px',height:'40px' , marginLeft: '10px' }} />
+                  <img src={product.BrandImage} alt={product.Brand} style={{ width: '40px',height:'40px' , marginLeft: '10px' }} />
                 </div>
                 <br />
                 <div style={{ textAlign: "center" }}>
@@ -153,9 +156,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product, onClose }) => 
       ) : (
         <p>Chargement des détails du produit...</p>
       )}
-      <div className="closeIcon" onClick={onClose}>
-        <FaTimes size={20} />
-      </div>
+  
     </div>
   );
 };

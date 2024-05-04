@@ -1,24 +1,29 @@
 .sidebar {
     top: 0;
     left: 0;
-    width: 250px;
     height: 100vh;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     position: sticky;
     background-color: var(--color-primary);
+    transition: width 0.6s ease;   
     font-family: Georgia, serif;
 
 }
 
 .sidebar-logo-container {
-    display: 'flex';
+    display: flex;
     align-items: center;
+    width: 100%;  
 }
 
 .sidebar-logo-container img {
-    width: 50%;
+    width: 60%;  
     padding: 2em;
+    transition: opacity 0.3s ease; 
+    margin-left: 15px;
+    margin-top: -10px;
 }
 
 .sidebar-container {
@@ -26,11 +31,15 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    margin-left: 0px;
 }
 
 .sidebar-items {
     height: 100%;
     width: 100%;
+    margin-top: 50px;
+
+    
 }
 
 .sidebar-item {
@@ -43,6 +52,7 @@
     align-items: center;
     justify-content: flex-start;
     cursor: pointer;
+    width: 100%;
 }
 
 .sidebar-item:hover {
@@ -50,25 +60,39 @@
 }
 
 .sidebar-item-active {
-    gap: 10px;
     display: flex;
-    padding: 1.5em 2em;
-    color: var(--color-white);
-    list-style: none;
-    text-decoration: none;
     align-items: center;
-    justify-content: flex-start;
-    background-color: var(--color-secondary);
+    padding: 12px 20px;
+    margin: 2px 0;
+    color: var(--color-white);
+    background-color: #0c3568;
+    text-decoration: none;
+    list-style: none;
     cursor: pointer;
+    transition: all 0.3s ease;
+    gap: 10px; 
+    
+    
+    
 }
+
+.sidebar-item-active:hover {
+    background-color: #0c3568;
+ 
+}
+
+
+
 
 .sidebar-item-icon {
     width: 20px;
+    margin-left: 0; 
 }
 
 .sidebar-item-label {
     font-size: 0.9em;
     font-weight: 500;
+    white-space: nowrap; 
 }
 
 /* Footer */
@@ -77,23 +101,26 @@
     color: var(--color-white);
     display: flex;
     align-items: center;
-    justify-content: space-between;
     cursor: pointer;
     text-decoration: none;
+    gap: 10px; 
 }
+
+
 
 .sidebar-footer:hover {
     background-color: var(--color-secondary);
 }
 
+
 .sidebar-toggle-icon {
     cursor: pointer;
     margin-right: 10px;
-    width: 25px;
-    height: 25px;
+    width: 20px;
+    height: 20px;
     position: absolute;
-    left: 20px;
-    top: 15px;
+    left: 10px;
+    top: 20px;
 }
 
 .search_icon_hidden {
@@ -101,3 +128,5 @@
     left: 10px;
 
 }
+
+

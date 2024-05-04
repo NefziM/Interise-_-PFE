@@ -365,8 +365,12 @@ select {
     text-align: center;
     height: 450px;
     width: 200px;
+    transition: width 0.3s, height 0.3s;
 }
-
+.product_box:hover {
+    width: 210px; /* Augmenter la largeur */
+    height: 460px; /* Augmenter la hauteur */
+  }
 
 .product_box img {
     width: 80%;
@@ -416,6 +420,9 @@ select {
     color: #0056b3;
 }
 
+  
+
+  
 .icon {
     cursor: pointer;
     margin-right: 10px;

@@ -3,12 +3,8 @@ import axios from 'axios';
 import styles from '../dashboard.module.css';
 import { Input } from '@components';
 import { DashboardComponents } from '@components';
-import '../Products/productPage.css';
-import { ROUTES } from "../../../utils/routes";
-import { Link } from "react-router-dom";
 import * as XLSX from "xlsx"; 
 import ProductDetails from '../ProductDetails';
-
 
 interface Product {
   Ref: string;
@@ -52,10 +48,7 @@ const Update: React.FC = () => {
   const [companyOptions, setCompanyOptions] = useState<string[]>([]); 
   const [dateFilter, setDateFilter] = useState<string | null>('jour');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [modifiedProductsCount, setModifiedProductsCount] = useState(0);
-  const [deletedProductsCount, setDeletedProductsCount] = useState(0);
-  const [availableProductsCount, setAvailableProductsCount] = useState(0);
-  const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
+  const [priceChangeType, setPriceChangeType] = useState<string | null>(null);
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -66,19 +59,48 @@ const Update: React.FC = () => {
   }, [page, pageSize]);
 
   useEffect(() => {
-    setCompanyOptions(Array.from(new Set(products.map(product => product.Company)))); 
-  }, [products]);
-
-
-  useEffect(() => {
-        setCompanyOptions(Array.from(new Set(products.map(product => product.Company)))); 
-    const filteredNewProducts = filterProductsByDateRange(initialProducts);
-    setProducts(filteredNewProducts);
-  }, [initialProducts, dateFilter]);
-
+    const filteredProducts = initialProducts.filter((product) => {
+      const meetsPriceCriteria =
+        (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+        (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+  
+      const meetsStockCriteria = !availabilityFilter || 
+        (availabilityFilter === "available" && product.Stock === "En stock") ||
+        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+        (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+  
+      const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
+  
+      const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
+  
+      const meetsSearchCriteria = !search || 
+        product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+        product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+        product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+        product.Company.toLowerCase().includes(search.toLowerCase()) ||
+        product.Brand.toLowerCase().includes(search.toLowerCase());
+  
+      return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsDateFilter && meetsSearchCriteria;
+    });
+  
+    const priceChanges = getPriceChanges(filteredProducts);
+    const priceIncreaseCount = priceChanges.priceIncreaseCount;
+    const priceDecreaseCount = priceChanges.priceDecreaseCount;
+  
+    // Filtrer par le changement de prix
+    const filteredProductsByPriceChange = filteredProducts.filter(product => product.Modifications && product.Modifications.length > 0);
+  
+    // Mettre à jour les options de la société
+    const companyOptions = Array.from(new Set(filteredProductsByPriceChange.map(product => product.Company)));
+    setCompanyOptions(companyOptions);
+  
+    // Appliquer les autres filtres
+    const finalFilteredProducts = filterProductsByDateRange(filteredProductsByPriceChange);
+    setProducts(finalFilteredProducts);
+  }, [initialProducts, availabilityFilter, minPrice, maxPrice, priceFilter, dateFilter, search]);
   const fetchProducts = useCallback(() => {
     setLoadingProducts(true);
-
+  
     axios
       .get('http://localhost:5000/api/products', {
         params: {
@@ -87,231 +109,167 @@ const Update: React.FC = () => {
         },
       })
       .then((response) => {
-        const data: Product[] = response.data;
-        const uniqueProducts = removeDuplicates(data, 'Ref'); 
-        setProducts(uniqueProducts.filter((product: Product) => product.Modifications && product.Modifications.length > 0));
-        setInitialProducts(uniqueProducts.filter((product: Product) => product.Modifications && product.Modifications.length > 0));
+        const products: Product[] = response.data;
+        const uniqueProductRefs = new Set<string>();
+  
+        // Ajouter chaque référence de produit à l'ensemble des références uniques
+        products.forEach((product: Product) => {
+          uniqueProductRefs.add(product.Ref);
+        });
+  
+        // Filtrer les produits qui ont des modifications
+        const filteredProducts = products.filter((product: Product) => product.Modifications && product.Modifications.length > 0);
+  
+        setProducts(filteredProducts);
+        setInitialProducts(filteredProducts);
         setLoadingProducts(false);
-        calculateStatistics(uniqueProducts.filter((product: Product) => product.Modifications ));
       })
       .catch((error) => {
         console.error('Error fetching products:', error);
         setLoadingProducts(false);
       });
-  }, [page, pageSize, initialProducts]);
+  },  [page, pageSize, setLoadingProducts, setProducts, setInitialProducts]);
   
-const calculateStatistics = (productsToCalculate = products) => {
-  let modifiedProductsSet = new Set();
-  let outOfStockProductsSet = new Set();
-  let availableProductsCount = 0;
-  let unavailableProductsCount = 0;
-
-  productsToCalculate.forEach((product) => {
-    // Vérifiez si le produit a été modifié aujourd'hui ou dans la période sélectionnée
-    const isModified = product.Modifications && product.Modifications.some((mod) => {
-      const modDate = new Date(mod.dateModification);
-      const currentDate = new Date();
-      let startDate = new Date(currentDate);
-      
-      switch (dateFilter) {
-        case 'jour':
-          startDate.setHours(0, 0, 0, 0);
-          break;
-        case 'semaine':
-          startDate.setDate(startDate.getDate() - 7);
-          break;
-        case 'mois':
-          startDate.setMonth(startDate.getMonth() - 1);
-          break;
+  const handleSearch = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      setSearch(value);
+      if (value === '') {
+        setFetched(50);
+        setProducts(initialProducts);
+      } else {
+        const filteredProducts = initialProducts.filter(
+          (product: Product) =>
+            product.Ref.toLowerCase().includes(value.toLowerCase()) ||
+            product.Designation.toLowerCase().includes(value.toLowerCase()) ||
+            product.Stock.toLowerCase().includes(value.toLowerCase()) ||
+            product.Company.toLowerCase().includes(value.toLowerCase()) ||
+            product.Brand.toLowerCase().includes(value.toLowerCase())
+        );
+        setProducts(filteredProducts);
       }
-
-      return modDate >= startDate && modDate <= currentDate;
-    });
-
-    if (isModified) {
-      modifiedProductsSet.add(product.Ref);
-    }
-
-    if (product.Stock === 'Hors stock') {
-      outOfStockProductsSet.add(product.Ref);
-    }
-
-    if (product.Stock === 'En stock') {
-      availableProductsCount++;
-    } else if (product.Stock === 'Sur commande') {
-      unavailableProductsCount++;
-    }
-  });
-
-  setModifiedProductsCount(modifiedProductsSet.size);
-  setDeletedProductsCount(outOfStockProductsSet.size);
-  setAvailableProductsCount(availableProductsCount);
-  setUnavailableProductsCount(unavailableProductsCount);
-  
-};
-
-  
-const handleSearch = useCallback(
-  (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { value } = event.target;
-    setSearch(value);
-    if (value === '') {
-      // Si la valeur de recherche est vide, réinitialisez les filtres
-      resetFilters();
-    } else {
-      // Sinon, filtrez les produits en fonction de la recherche et des filtres actifs
-      const filteredProducts = initialProducts.filter(
-        (product: Product) =>
-          product.Ref.toLowerCase().includes(value.toLowerCase()) ||
-          product.Designation.toLowerCase().includes(value.toLowerCase()) ||
-          product.Stock.toLowerCase().includes(value.toLowerCase()) ||
-          product.Company.toLowerCase().includes(value.toLowerCase()) ||
-          product.Brand.toLowerCase().includes(value.toLowerCase())
-      );
-      // Mettez à jour les produits affichés et recalculez les statistiques
-      setProducts(filteredProducts);
-      calculateStatistics(filteredProducts);
-      fetchProducts();
-    }
-  },
-  [initialProducts, calculateStatistics,fetchProducts]
-);
-
+    },
+    [initialProducts]
+  );
 
 
   const exportToXLS = useCallback(() => {
-    // Filtrer les produits selon les critères sélectionnés
+    // Filtrer les produits selon les critères sélectionnés, y compris le filtrage par augmentation de prix
     let filteredProducts = initialProducts.filter(product => {
-      const priceValid = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
-      const meetsPriceCriteria = (!minPrice || priceValid >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
-                           (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+        const priceValid = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+        const meetsPriceCriteria = (!minPrice || priceValid >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+                                   (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
 
-      const meetsStockCriteria = !availabilityFilter || 
-        (availabilityFilter === "available" && product.Stock === "En stock") ||
-        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-        (availabilityFilter === "horstock" && product.Stock === "Hors stock");
-      const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
-  
-      return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria;
+        const meetsStockCriteria = !availabilityFilter || 
+                                    (availabilityFilter === "available" && product.Stock === "En stock") ||
+                                    (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+                                    (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+        
+        const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
+        
+        const meetsDateCriteria = !dateFilter || filterProductsByDateRange([product]).length > 0;
+        
+        const meetsSearchCriteria = !search || 
+                                    product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+                                    product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+                                    product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+                                    product.Brand.toLowerCase().includes(search.toLowerCase()) ||
+                                    product.Company.toLowerCase().includes(search.toLowerCase());
+
+       const meetsPriceChangeCriteria = !priceChangeType || 
+                                    (priceChangeType === "increase" && product.Modifications && product.Modifications.some(mod => {
+                                      const lastPrice = parseFloat(mod.ancienPrix.replace(/\s/g, '').replace(',', '.'));
+                                      const currentPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+                                      return currentPrice > lastPrice;
+                                    })) ||
+                                    (priceChangeType === "decrease" && product.Modifications && product.Modifications.some(mod => {
+                                      const lastPrice = parseFloat(mod.ancienPrix.replace(/\s/g, '').replace(',', '.'));
+                                      const currentPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+                                      return currentPrice < lastPrice;
+                                    }));
+                                          
+        return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria && meetsDateCriteria && meetsSearchCriteria && meetsPriceChangeCriteria;
     });
-  
+
     if (priceFilter === 'asc') {
-      filteredProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
+        filteredProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
     } else if (priceFilter === 'desc') {
-      filteredProducts.sort((a, b) => parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')));
+        filteredProducts.sort((a, b) => parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')));
     }
-  
+
     const data = filteredProducts.map(product => {
-      const lastModification = product.Modifications && product.Modifications[product.Modifications.length - 1];
-      return {
-        Ref: product.Ref,
-        Image: product.Image,
-        Designation: product.Designation,
-        DateAjout: product.DateAjout ? new Date(product.DateAjout).toLocaleDateString() : 'N/A', // Ensures DateAjout is treated as a Date
-        Price: product.Price,
-        DiscountAmount: product.DiscountAmount,
-        Stock: product.Stock,
-        Brand: product.Brand,
-        BrandImage: product.BrandImage,
-        Company: product.Company,
-        Category: product.Category,
-        Subcategory: product.Subcategory,
-        Link: product.Link,
-        AncienPrix: lastModification ? lastModification.ancienPrix : 'N/A',
-        DateModification: lastModification ? new Date(lastModification.dateModification).toLocaleDateString() : 'N/A'
-      };
+        const lastModification = product.Modifications && product.Modifications[product.Modifications.length - 1];
+        return {
+            Ref: product.Ref,
+            Image: product.Image,
+            Designation: product.Designation,
+            DateAjout: product.DateAjout ? new Date(product.DateAjout).toLocaleDateString() : 'N/A',
+            Price: product.Price,
+            DiscountAmount: product.DiscountAmount,
+            Stock: product.Stock,
+            Brand: product.Brand,
+            BrandImage: product.BrandImage,
+            Company: product.Company,
+            Category: product.Category,
+            Subcategory: product.Subcategory,
+            Link: product.Link,
+            AncienPrix: lastModification ? lastModification.ancienPrix : 'N/A',
+            DateModification: lastModification ? new Date(lastModification.dateModification).toLocaleDateString() : 'N/A'
+        };
     });
-    
-  
+
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "FilteredProducts");
     XLSX.writeFile(wb, `FilteredProducts_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter]);
+}, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter, dateFilter, search, priceChangeType]);
 
-
-  const removeDuplicates = (arr: any[], key: string) => {
-    const map = new Map();
-    for (const item of arr) {
-      map.set(item[key], item);
-    }
-    return Array.from(map.values());
-  };
-  
-  
-  const handleMinPriceChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMinPrice(value);
-    setProducts(filteredProducts);
-    calculateStatistics(filteredProducts);
-    filterProducts(value,maxPrice, 'min');
-  },[initialProducts,calculateStatistics,fetchProducts]);
+    filterProducts(value, maxPrice, 'min');
+  };
 
-  const handleMaxPriceChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMaxPrice(value);
-    setProducts(filteredProducts);
-    calculateStatistics(filteredProducts);
     filterProducts(minPrice, value, 'max');
-  },[initialProducts,calculateStatistics,fetchProducts]);
-  
+  };
   
 
   const filterProducts = (min: string, max: string, filterType: 'min' | 'max') => {
-    const minPriceValue = filterType === 'min' ? parseFloat(min.replace(/\s/g, '').replace(',', '.')) : Number.MIN_VALUE;
-    const maxPriceValue = filterType === 'max' ? parseFloat(max.replace(/\s/g, '').replace(',', '.')) : Number.MAX_VALUE;
+    const minPriceValue = parseFloat(min.replace(/\s/g, '').replace(',', '.'));
+    const maxPriceValue = parseFloat(max.replace(/\s/g, '').replace(',', '.'));
 
     const filteredProducts = initialProducts.filter((product: Product) => {
-        const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+      const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
 
-        // Filtrer par prix
-        const priceFilter = price >= minPriceValue && price <= maxPriceValue;
+      if (filterType === 'min') {
+        return price >= minPriceValue;
+      } else if (filterType === 'max') {
+        return price <= maxPriceValue;
+      }
 
-        // Filtrer par date
-        const isModifiedToday = product.Modifications?.some((mod) => {
-            const modDate = new Date(mod.dateModification);
-            const currentDate = new Date();
-            let startDate = new Date(currentDate);
-
-            switch (dateFilter) {
-                case 'jour':
-                    startDate.setHours(0, 0, 0, 0);
-                    break;
-                case 'semaine':
-                    startDate.setDate(startDate.getDate() - 7);
-                    break;
-                case 'mois':
-                    startDate.setMonth(startDate.getMonth() - 1);
-                    break;
-            }
-
-            return modDate >= startDate && modDate <= currentDate;
-        }) ?? false;
-
-        // Vérifier si le produit passe à la fois les filtres de prix et de date
-        return priceFilter && isModifiedToday;
+      return true;
     });
 
     setProducts(filteredProducts);
-    calculateStatistics(filteredProducts);
-    return filteredProducts;
-};
-
+  };
 
 
   const handlePriceFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
       setPriceFilter(value === 'asc' || value === 'desc' ? value : null);
-      setProducts(filteredProducts);
-    calculateStatistics(filteredProducts);
-    fetchProducts();
     },
-    [initialProducts,calculateStatistics,fetchProducts]
+    []
   );
-
+  
+  
+  
+ 
+  
+  
   const handleAvailabilityFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
@@ -327,10 +285,8 @@ const handleSearch = useCallback(
       }
   
       setProducts(filteredProducts); 
-      calculateStatistics(filteredProducts); 
-      fetchProducts(); 
     },
-    [initialProducts, calculateStatistics,fetchProducts]
+    [initialProducts]
   );
   
 
@@ -363,15 +319,16 @@ const handleSearch = useCallback(
     setSelectedCompany(null);
     setSelectedCompany('All');
     setDateFilter('jour');
+    setPriceChangeType(null); 
     fetchProducts();
-    calculateStatistics(filteredProducts);
-  }, [initialProducts, calculateStatistics, fetchProducts]);
+  }, [initialProducts, fetchProducts]);
   
 
   const handleResetFilters = () => {
     resetFilters();
   };
   
+
   const calculatePriceChange = (product: Product) => {
     if (!product.Modifications || product.Modifications.length === 0) return 0;
     const lastModification = product.Modifications[product.Modifications.length - 1];
@@ -383,18 +340,53 @@ const handleSearch = useCallback(
   };
   
 
-  type PriceChangeType = 'increase' | 'decrease';
-
-const handlePriceChangeFilter = (changeType: PriceChangeType) => {
-  const filteredProducts = initialProducts.filter((product) => {
-    const priceChange = calculatePriceChange(product);
-    return (changeType === 'increase' && priceChange > 0) || (changeType === 'decrease' && priceChange < 0);
-  });
-  setProducts(filteredProducts);
-  calculateStatistics(filteredProducts);  
- 
-};
-
+  const handlePriceChangeFilter = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const changeType = event.target.value;
+      // Appliquer les autres filtres sur les produits initiaux
+      const filteredProducts = initialProducts.filter((product) => {
+        const meetsPriceCriteria =
+          (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+          (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+  
+        const meetsStockCriteria = !availabilityFilter || 
+          (availabilityFilter === "available" && product.Stock === "En stock") ||
+          (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+          (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+  
+        const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
+  
+        const meetsSearchCriteria = !search || 
+          product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+          product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+          product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+          product.Company.toLowerCase().includes(search.toLowerCase()) ||
+          product.Brand.toLowerCase().includes(search.toLowerCase());
+  
+        return meetsPriceCriteria && meetsStockCriteria && meetsDateFilter && meetsSearchCriteria;
+      });
+  
+      // Filtrer par le changement de prix sur les produits filtrés par les autres critères
+      const filteredProductsByPriceChange = filteredProducts.filter((product) => {
+        const priceChange = calculatePriceChange(product);
+        return (changeType === 'increase' && priceChange > 0) || (changeType === 'decrease' && priceChange < 0);
+      });
+  
+      // Appliquer le filtrage ascendant ou descendant
+      const sortedProductsByPriceChange = applyPriceFilter(filteredProductsByPriceChange);
+  
+      // Filtrer par la date sélectionnée
+      const filteredProductsByDate = filterProductsByDateRange(sortedProductsByPriceChange);
+  
+      // Mettre à jour les produits affichés
+      setProducts(filteredProductsByDate);
+      // Mettre à jour le type de changement de prix
+      setPriceChangeType(changeType);
+    },
+    [initialProducts, minPrice, maxPrice, availabilityFilter, dateFilter, search]
+  );
+  
+  
   
   
   const filteredProductsByAvailability = availabilityFilter
@@ -414,11 +406,12 @@ const handlePriceChangeFilter = (changeType: PriceChangeType) => {
        : products;
 
 
+       const modifiedProductsCount = products.length;
+       const availableProductsCount = products.filter(product => product.Stock === "En stock").length;
+       const unavailableProductsCount = products.filter(product => product.Stock === "Sur commande").length;
+       const deletedProductsCount = products.filter(product => product.Stock === "Hors stock").length;
     
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
-  const truncateText = (text: string, maxLength: number) => {
-    return text.length > maxLength ? text.slice(0, maxLength) + ' ...' : text;
-  };
 
   const filterProductsByDateRange = (products: Product[]): Product[] => {
     const currentDate = new Date();
@@ -437,48 +430,41 @@ const handlePriceChangeFilter = (changeType: PriceChangeType) => {
         break;
     }
   
-    const filteredProducts = products.filter(product => {
+    return products.filter(product => {
       // Use optional chaining and provide a default empty array if Modifications is undefined
       return product.Modifications?.some(mod => {
         const modDate = new Date(mod.dateModification);
         return modDate >= startDate && modDate <= currentDate;
       }) ?? false; // Return false if Modifications is undefined
     });
-
-    // Mettez à jour les produits filtrés et les statistiques
-    setProducts(filteredProducts);
-    calculateStatistics(filteredProducts); 
-    
-
-    return filteredProducts;
-};
-
+  };
   
 
-const getPriceChanges = (products: Product[]) => {
-  let priceIncreaseCount = 0;
-  let priceDecreaseCount = 0;
-  let noChangeCount = 0;
-
-  products.forEach(product => {
-    if (product.Modifications && product.Modifications.length > 0) {
-      const lastMod = product.Modifications[product.Modifications.length - 1];
-      const oldPrice = parseFloat(lastMod.ancienPrix.replace(/\s/g, '').replace(',', '.'));
-      const newPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
-      if (newPrice > oldPrice) {
-        priceIncreaseCount++;
-      } else if (newPrice < oldPrice) {
-        priceDecreaseCount++;
-      } else {
-        noChangeCount++;
+  const getPriceChanges = useCallback((products: Product[]) => {
+    let priceIncreaseCount = 0;
+    let priceDecreaseCount = 0;
+    let noChangeCount = 0;
+  
+    products.forEach(product => {
+      if (product.Modifications && product.Modifications.length > 0) {
+        const lastMod = product.Modifications[product.Modifications.length - 1];
+        const oldPrice = parseFloat(lastMod.ancienPrix.replace(/\s/g, '').replace(',', '.'));
+        const newPrice = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+        if (newPrice > oldPrice) {
+          priceIncreaseCount++;
+        } else if (newPrice < oldPrice) {
+          priceDecreaseCount++;
+        } else {
+          noChangeCount++;
+        }
       }
-    }
-  });
-
-  return { priceIncreaseCount, priceDecreaseCount, noChangeCount };
-};  
+    });
+  
+    return { priceIncreaseCount, priceDecreaseCount, noChangeCount };
+  }, []);
+    
  
-const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChanges(products);
+const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
 
   return (
     
@@ -577,10 +563,10 @@ const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChange
               <option value="horstock">Hors stock</option>
               <option value="unavailable">Sur commande</option>
             </select>
-          </div>          <div className={styles.filter_group}>
-
-          <select onChange={(e) => handlePriceChangeFilter(e.target.value as PriceChangeType)}>
-  <option value="">changement de prix</option>
+          </div>        
+            <div className={styles.filter_group}>
+          <select value={priceChangeType || ''} onChange={handlePriceChangeFilter}>
+  <option value="" style={{color:'gray'}}>changement de prix</option>
   <option value="increase">Augmentation de prix</option>
   <option value="decrease">Diminution de prix</option>
 </select></div>
@@ -623,7 +609,7 @@ const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChange
   <tr></tr>
   {loadingProducts ? (
   <p style={{ textAlign: "center" }}><b>Veuillez patienter...</b></p>
-) : products.length === 0 ? (
+) : filteredProducts.length === 0 ? (
   <p style={{ textAlign: "center", color: "red" }}><b>Aucun produit trouvé</b></p>
 ) : displayMode === 'table' ? (
           <table>
@@ -697,7 +683,9 @@ const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChange
         ) : (
           <div className={styles.dashboard_content_cards}>
             {filteredProducts.map((product, index) => (
-              <div key={index} className={styles.product_box} style={{height: '490px',width: '200px'}}>
+              <div key={index} className={styles.product_box}>
+                <div className="product-details-link" key={product.Ref} onClick={() => handleProductClick(product)} style={{ cursor: 'pointer' }}>
+ 
                 <img className={styles.update_product_overlay} src="/images/upp.png" style={{width:'150px',height: '120px'}} alt="new" />
                 <img src={product.Image} alt={product.Designation} />
                  <p>{product.DiscountAmount !== "Aucune remise" && (
@@ -712,35 +700,17 @@ const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChange
                 <div>
                 <p>{product.Ref}</p>
                   <h3>
-
-
-                    
-                      
-                      <a href={product.Link} target="_blank" style={{color:'#140863'}}>
-    {product.Designation.length > 30 ? product.Designation.slice(0, 30) + '...' : product.Designation}
-  </a>
+                  {product.Designation.length > 30 ? product.Designation.slice(0, 30) + '...' : product.Designation}
                       </h3>
-         
-                      <p>
-                <img src={product.BrandImage}alt={product.Designation} style={{width:'50px',height: '50px'}}/>
-</p>
-
-
-
-
   <p><span style={{ textDecoration: 'line-through',color:'gray'}}>{product.Modifications && product.Modifications.length > 0
     ? product.Modifications[product.Modifications.length - 1].ancienPrix
     : 'Pas de modifications'}</span></p>
                     <p> <span style={{color: 'red' }}><b>{product.Price}</b></span></p>
                     <p style={product.Stock === "En stock" ? { color: "green" } : { color: "red" }}>
               {product.Stock}</p>
-                  <p>{product.Company}</p>
-                  <Link
-  className="product-details-link"
-  to={`${ROUTES.PRODUCTDETAILS}/${product.Ref}`}
->
-  Voir plus
-</Link>
+                  <p><b>{product.Company}</b></p>
+                
+</div>
                 </div>
               </div>
             ))}
@@ -750,22 +720,24 @@ const { priceIncreaseCount, priceDecreaseCount, noChangeCount } = getPriceChange
           
         )}
 
-      
+{selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
 
         {products.length > fetched ? (
           <span className={styles.handle_more_button} onClick={__handleLoadMore}>
             Charger plus
           </span>
         ) : null}
+
+
       </div>
-      {selectedProduct && (
-  <ProductDetails
-    product={selectedProduct}
-    onClose={() => setSelectedProduct(null)}
-  />
-)}
+
     </div>
-    
+
     
   );
   

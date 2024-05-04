@@ -7,12 +7,13 @@
   margin: 20px;
   margin-left: -1450px;
   margin-top: -55px;
+ 
 }
-
+.details{margin-top: -10px;}
 .productImage {
-  width: 1800px;
-  height: 500px;
+
   margin-left: 100px;
+  margin-top: -120px;
 }
 
 .productInfo {
@@ -29,6 +30,7 @@
   display: flex;
   width: 100%;
   align-items: flex-start;
+
 }
 
 .productInfo {
@@ -36,6 +38,8 @@
   flex-direction: column;
   flex: 1;
   margin-right: 20px;
+  border: 3px solid rgb(1, 17, 74);
+
 }
 
 .imageChartContainer {
@@ -45,16 +49,16 @@
 }
 
 .chartContainer {
-  margin-left: 50px;
+  margin-left: 350px;
   font-family: Georgia, serif;
+  margin-top: -60px;
 }
 
 .ConsulterButton {
-  padding: 20px 20px;
+  padding: 12px 12px;
   width: auto;
   height: auto;
   cursor: pointer;
-  position: relative;
   background-color: #041172;
   transition: all .2s;
   overflow: hidden;
@@ -62,7 +66,7 @@
   text-align: center;
   box-shadow: 0px -0px 0px 0px rgba(242, 242, 191, 0.5), 0px 0px 0px 0px rgba(39, 200, 255, .5);
   font-family: Georgia, serif;
-  margin-top: -30px;
+  margin-top: -450px;
 }
 
 
@@ -90,4 +94,9 @@
 .ConsulterButton:hover {
   transform: translate(0, -6px);
   box-shadow: 10px -10px 25px 0px rgba(143, 64, 248, .25), -10px 10px 25px 0px rgba(39, 200, 255, .25);
+}
+.closeIcon {
+ color:rgb(131, 10, 10);
+cursor: pointer;
+ margin-left: 1400px;
 }

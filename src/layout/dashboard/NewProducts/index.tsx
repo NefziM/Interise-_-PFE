@@ -64,8 +64,33 @@ useEffect(() => {
 
 useEffect(() => {
   const filteredNewProducts = filterNewProductsByDateRange(initialProducts);
-  setProducts(filteredNewProducts);
-}, [initialProducts, dateFilter]);
+
+  const filteredProducts = filteredNewProducts.filter((product) => {
+    const meetsPriceCriteria =
+      (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+      (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+
+    const meetsStockCriteria = !availabilityFilter || 
+      (availabilityFilter === "available" && product.Stock === "En stock") ||
+      (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+      (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+
+    const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
+
+    const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
+
+    const meetsSearchCriteria = !search || 
+      product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+      product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+      product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+      product.Company.toLowerCase().includes(search.toLowerCase()) ||
+      product.Brand.toLowerCase().includes(search.toLowerCase());
+
+    return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsDateFilter && meetsSearchCriteria;
+  });
+
+  setProducts(filteredProducts);
+}, [initialProducts, dateFilter, search, priceFilter, maxPrice, minPrice, availabilityFilter]);
 
 
   const fetchProducts = useCallback(() => {
@@ -124,71 +149,50 @@ useEffect(() => {
   );
   const filterNewProductsByDateRange = (products: newProduct[]): newProduct[] => {
     const currentDate = new Date();
-    let startDate = new Date(); 
-    startDate.setHours(0, 0, 0, 0);
-    let endDate = new Date(startDate); 
-    endDate.setHours(23, 59, 59, 999); 
+    let startDate = new Date(currentDate);
+  
     switch (dateFilter) {
-        case 'jour':
-         
-            break;
-        case 'semaine':
-            startDate.setDate(startDate.getDate() - 7); 
-            break;
-        case 'mois':
-            startDate.setMonth(startDate.getMonth() - 1); 
-            break;
-        default:
-            return products; 
+      case 'jour':
+        startDate.setHours(0, 0, 0, 0);
+        currentDate.setHours(23, 59, 59, 999);
+        break;
+      case 'semaine':
+        startDate.setDate(startDate.getDate() - 7);
+        break;
+      case 'mois':
+        startDate.setMonth(startDate.getMonth() - 1);
+        break;
     }
   
     return products.filter(product => {
       if (product.DateAjout) {
           const productDate = new Date(product.DateAjout);
-          return productDate >= startDate && productDate <= endDate;
+          return productDate >= startDate && productDate <= currentDate;
       }
       return false;
     });
   };
   
   const exportToXLS = useCallback(() => {
-    // Determine if there are any active filters
-    const filtersActive = minPrice || maxPrice || selectedCompany || availabilityFilter || priceFilter || dateFilter;
-  
-    // Filter based on all criteria
-    const filteredProducts = initialProducts.filter(product => {
+    let filteredProducts = initialProducts.filter(product => {
+      // Apply price criteria
       const priceValid = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
       const meetsPriceCriteria = (!minPrice || priceValid >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
-                                 (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.'))); 
+                           (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+      const meetsDateCriteria = !dateFilter || filterNewProductsByDateRange([product]).length > 0;
       const meetsStockCriteria = !availabilityFilter || 
-        (availabilityFilter === "available" && product.Stock === "En stock") ||
-        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-        (availabilityFilter === "horstock" && product.Stock === "Hors stock");
-      const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
-  
-      // Date criteria
-      let meetsDateCriteria = true;
-      if (dateFilter && product.DateAjout) {
-        const productDate = new Date(product.DateAjout);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const endDate = new Date(today);
-        endDate.setHours(23, 59, 59, 999);
-  
-        if (dateFilter === 'jour') {
-          meetsDateCriteria = productDate >= today && productDate <= endDate;
-        } else if (dateFilter === 'semaine') {
-          const weekStart = new Date(today);
-          weekStart.setDate(today.getDate() - 7);
-          meetsDateCriteria = productDate >= weekStart && productDate <= endDate;
-        } else if (dateFilter === 'mois') {
-          const monthStart = new Date(today);
-          monthStart.setMonth(today.getMonth() - 1);
-          meetsDateCriteria = productDate >= monthStart && productDate <= endDate;
-        }
-      }
-  
-      return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria && meetsDateCriteria;
+      (availabilityFilter === "available" && product.Stock === "En stock") ||
+      (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+      (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+      const meetsSearchCriteria = !search || 
+        product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+        product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+        product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+        product.Company.toLowerCase().includes(search.toLowerCase()) ||
+        product.Brand.toLowerCase().includes(search.toLowerCase());
+      
+
+      return meetsPriceCriteria && meetsStockCriteria  && meetsDateCriteria && meetsSearchCriteria ;
     });
   
     // Sort the products if a price filter is set
@@ -220,20 +224,20 @@ useEffect(() => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "FilteredProducts");
     XLSX.writeFile(wb, `FilteredProducts_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter, dateFilter]);
+  }, [initialProducts, minPrice, maxPrice, availabilityFilter, priceFilter, dateFilter]);
   
   
 
   const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMinPrice(value);
-    filterProducts(value, maxPrice, 'min');
+    filterProducts(value, maxPrice);
   };
   
   const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMaxPrice(value);
-    filterProducts(minPrice, value, 'max');
+    filterProducts(minPrice, value);
   };
   
   const uniqueProducts: newProduct[] = [];
@@ -249,23 +253,16 @@ useEffect(() => {
 
 
   
-  const filterProducts = (min: string, max: string, filterType: 'min' | 'max') => {
+  const filterProducts = (min: string, max: string) => {
     const minPriceValue = parseFloat(min.replace(/\s/g, '').replace(',', '.'));
     const maxPriceValue = parseFloat(max.replace(/\s/g, '').replace(',', '.'));
-
+  
     const filteredProducts = initialProducts.filter((product: newProduct) => {
       const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
-
-      if (filterType === 'min') {
-        return price >= minPriceValue;
-      } else if (filterType === 'max') {
-        return price <= maxPriceValue;
-      }
-
-      return true;
+      return price >= minPriceValue && price <= maxPriceValue;
     });
-
-    setInitialProducts(filteredProducts);
+  
+    setProducts(filteredProducts);
   };
 
   const handlePriceFilterChange = useCallback(
@@ -336,13 +333,6 @@ useEffect(() => {
               )
             : products  
        : products;
-  
-  const handleDisplayModeChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setDisplayMode(event.target.value as 'table' | 'box');
-    },
-    []
-  );
   const resetFilters = useCallback(() => {
     setSearch("");
     setPage(1);
@@ -369,11 +359,6 @@ useEffect(() => {
   };
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
   const newProducts = filteredProducts.filter((product: newProduct) => product.DateAjout);
-  
-  
-  const truncateText = (text: string, maxLength: number) => {
-    return text.length > maxLength ? text.slice(0, maxLength) + ' ...' : text;
-  };
   const newProductsCount= products.length;
   const availableProductsCount = products.filter(product => product.Stock === "En stock").length;
   const unavailableProductsCount = products.filter(product => product.Stock === "Sur commande").length;
