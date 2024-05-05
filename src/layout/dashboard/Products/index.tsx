@@ -50,6 +50,9 @@ const Products: React.FC = () => {
   const companyOptions = Array.from(
     new Set(initialProducts.map((product) => product.Company))
   );
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+
   const [availableProductsCount, setAvailableProductsCount] = useState(0);
 const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
   const [minPrice, setMinPrice] = useState<string>("");
@@ -65,6 +68,7 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
   const [deletedProductsCount, setDeletedProductsCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
   };
@@ -111,7 +115,8 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
         (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
         (availabilityFilter === "horstock" && product.Stock === "Hors stock");
   
-      const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
+      const meetsCategoryCriteria = !selectedCategory || selectedCategory === 'All' || 
+        (product.Category === selectedCategory && product.Subcategory === selectedSubcategory);
   
       const meetsSearchCriteria = !search || 
         product.Ref.toLowerCase().includes(search.toLowerCase()) ||
@@ -120,11 +125,12 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
         product.Company.toLowerCase().includes(search.toLowerCase()) ||
         product.Brand.toLowerCase().includes(search.toLowerCase());
   
-      return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsSearchCriteria;
+      return meetsPriceCriteria && meetsStockCriteria && meetsCategoryCriteria && meetsSearchCriteria;
     });
   
     setProducts(filteredProducts);
-  }, [initialProducts, minPrice, maxPrice, availabilityFilter, priceFilter, search]);
+    calculateStatistics(filteredProducts);
+  }, [initialProducts, minPrice, maxPrice, availabilityFilter, selectedCategory, selectedSubcategory, search]);
   
   const fetchProducts = useCallback(() => {
     setLoadingProducts(true);
@@ -143,8 +149,9 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
         setLoadingProducts(false);
     });
   }, [page, pageSize]);
-
-
+  
+  
+ 
   const calculateStatistics = (productsToCalculate = products) => {
     let newProductsSet = new Set();
     let modifiedProductsSet = new Set();
@@ -227,8 +234,6 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
     setPriceIncreaseCount(priceIncreases);
     setPriceDecreaseCount(priceDecreases);
   };
-  
-
   const extractCategories = (products: Product[]) => {
     const categories: { [key: string]: string[] } = {};
     products.forEach((product) => {
@@ -242,79 +247,150 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
     });
     return categories;
   };
+  
+  
+  // Utilisez useMemo pour calculer les catégories une seule fois lors du changement des produits initiaux
   const categories = useMemo(() => extractCategories(initialProducts), [
     initialProducts,
   ]);
+  // Modifiez votre fonction handleCategoryChange pour mettre à jour les états de catégorie sélectionnés
   const handleCategoryChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
       if (value === "") {
-        setProducts(initialProducts);
-        calculateStatistics(initialProducts);
-      } else {
-        const [selectedCategory, selectedSubcategory] = value.split("-");
+        setSelectedCategory(null);
+        setSelectedSubcategory(null);
         const filteredProducts = initialProducts.filter(
           (product) =>
-            product.Category === selectedCategory &&
-            product.Subcategory === selectedSubcategory
+            (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+            (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.'))) &&
+            (!availabilityFilter || 
+              (availabilityFilter === "available" && product.Stock === "En stock") ||
+              (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+              (availabilityFilter === "horstock" && product.Stock === "Hors stock")) &&
+            (!search || 
+              product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+              product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+              product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+              product.Company.toLowerCase().includes(search.toLowerCase()) ||
+              product.Brand.toLowerCase().includes(search.toLowerCase()))
         );
         setProducts(filteredProducts);
-        calculateStatistics(filteredProducts);  
+        calculateStatistics(filteredProducts);
+      } else {
+        const [selectedCat, selectedSubcat] = value.split("-");
+        if (selectedSubcat) {
+          setSelectedCategory(selectedCat);
+          setSelectedSubcategory(selectedSubcat);
+          const filteredProducts = initialProducts.filter(
+            (product) =>
+              (product.Category === selectedCat && product.Subcategory === selectedSubcat) &&
+              (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+              (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.'))) &&
+              (!availabilityFilter || 
+                (availabilityFilter === "available" && product.Stock === "En stock") ||
+                (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+                (availabilityFilter === "horstock" && product.Stock === "Hors stock")) &&
+              (!search || 
+                product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+                product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+                product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+                product.Company.toLowerCase().includes(search.toLowerCase()) ||
+                product.Brand.toLowerCase().includes(search.toLowerCase()))
+          );
+          setProducts(filteredProducts);
+          calculateStatistics(filteredProducts);
+        } else {
+          setSelectedCategory(value);
+          setSelectedSubcategory(null);
+          const filteredProducts = initialProducts.filter(
+            (product) =>
+              (product.Category === selectedCat) &&
+              (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+              (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.'))) &&
+              (!availabilityFilter || 
+                (availabilityFilter === "available" && product.Stock === "En stock") ||
+                (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+                (availabilityFilter === "horstock" && product.Stock === "Hors stock")) &&
+              (!search || 
+                product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+                product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+                product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+                product.Company.toLowerCase().includes(search.toLowerCase()) ||
+                product.Brand.toLowerCase().includes(search.toLowerCase()))
+          );
+          setProducts(filteredProducts);
+          calculateStatistics(filteredProducts);
+        }
       }
     },
-    [initialProducts, calculateStatistics]  
+    [initialProducts, calculateStatistics, minPrice, maxPrice, availabilityFilter, search]
   );
+  
+
+  
   const exportToXLS = useCallback(() => {
-    const filteredProducts = initialProducts.filter(product => {
-        const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
-        const meetsPriceCriteria = (!minPrice || price >= parseFloat(minPrice)) && (!maxPrice || price <= parseFloat(maxPrice));
-        const meetsStockCriteria = !availabilityFilter || 
-          (availabilityFilter === "available" && product.Stock === "En stock") ||
-          (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-          (availabilityFilter === "horstock" && product.Stock === "Hors stock");
-        const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
-        const categoryFilterElement = document.getElementById("categoryFilter") as HTMLSelectElement;
-        const selectedCategoryValue = categoryFilterElement ? categoryFilterElement.value : "";
-        let meetsCategoryCriteria = true;
-        if (selectedCategoryValue) {
-          const [selectedCategory, selectedSubcategory] = selectedCategoryValue.split("-");
-          meetsCategoryCriteria = product.Category === selectedCategory && product.Subcategory === selectedSubcategory;
-        }
-        return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria && meetsCategoryCriteria;
+    const filteredProducts = initialProducts.filter((product) => {
+      const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+      const meetsPriceCriteria = (!minPrice || price >= parseFloat(minPrice)) && (!maxPrice || price <= parseFloat(maxPrice));
+      const meetsStockCriteria = !availabilityFilter ||
+        (availabilityFilter === "available" && product.Stock === "En stock") ||
+        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+        (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+      const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
+      const categoryFilterElement = document.getElementById("categoryFilter") as HTMLSelectElement;
+      const selectedCategoryValue = categoryFilterElement ? categoryFilterElement.value : "";
+      let meetsCategoryCriteria = true;
+      if (selectedCategoryValue) {
+        const [selectedCategory, selectedSubcategory] = selectedCategoryValue.split("-");
+        meetsCategoryCriteria = product.Category === selectedCategory && product.Subcategory === selectedSubcategory;
+      }
+      const meetsSearchCriteria = !search ||
+        product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+        product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+        product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+        product.Company.toLowerCase().includes(search.toLowerCase()) ||
+        product.Brand.toLowerCase().includes(search.toLowerCase());
+      return meetsPriceCriteria && meetsStockCriteria && meetsCompanyCriteria && meetsCategoryCriteria && meetsSearchCriteria;
     });
+  
+    let sortedProducts = [...filteredProducts];
     if (priceFilter === 'asc') {
-        filteredProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
+      sortedProducts.sort((a, b) => parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')));
     } else if (priceFilter === 'desc') {
-        filteredProducts.sort((a, b) => parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')));
+      sortedProducts.sort((a, b) => parseFloat(b.Price.replace(/\s/g, '').replace(',', '.')) - parseFloat(a.Price.replace(/\s/g, '').replace(',', '.')));
     }
-    const data = filteredProducts.map(product => {
-        const latestModification = product.Modifications && product.Modifications.length > 0
-            ? product.Modifications[product.Modifications.length - 1]
-            : null;
-        return {
-            Ref: product.Ref,
-            Designation: product.Designation,
-            Price: product.Price,
-            Stock: product.Stock,
-            Image: product.Image,
-            Brand: product.Brand,
-            Company: product.Company,
-            BrandImage: product.BrandImage,
-            Link: product.Link,
-            DateAjout: product.DateAjout ? new Date(product.DateAjout).toLocaleDateString() : " ",
-            Category: product.Category,
-            Subcategory: product.Subcategory,
-            AncienPrix: latestModification ? latestModification.ancienPrix : " ",
-            DateModification: latestModification ? new Date(latestModification.dateModification).toLocaleDateString() : " "
-        };
+  
+    const data = sortedProducts.map((product) => {
+      const latestModification = product.Modifications && product.Modifications.length > 0 ?
+        product.Modifications[product.Modifications.length - 1] :
+        null;
+      return {
+        Ref: product.Ref,
+        Designation: product.Designation,
+        Price: product.Price,
+        Stock: product.Stock,
+        Image: product.Image,
+        Brand: product.Brand,
+        Company: product.Company,
+        BrandImage: product.BrandImage,
+        Link: product.Link,
+        DateAjout: product.DateAjout ? new Date(product.DateAjout).toLocaleDateString() : " ",
+        Category: product.Category,
+        Subcategory: product.Subcategory,
+        AncienPrix: latestModification ? latestModification.ancienPrix : " ",
+        DateModification: latestModification ? new Date(latestModification.dateModification).toLocaleDateString() : " "
+      };
     });
+  
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Produits");
     const today = new Date();
     const filename = `Products_${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}.xlsx`;
     XLSX.writeFile(wb, filename);
-}, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter]);
+  }, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter, search]);
+   
 const handleSearch = useCallback(
   (event: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = event.target;
@@ -483,12 +559,7 @@ const handleCompanyChange = useCallback(
   
     return { priceIncreaseCount, priceDecreaseCount };
   };
-  
-  
-  
-   
- 
-  const resetFilters = useCallback(() => {
+  const resetFilters = () => {
     setSearch("");
     setPage(1);
     setPageSize(50);
@@ -498,12 +569,15 @@ const handleCompanyChange = useCallback(
     setMaxPrice("");
     setAvailabilityFilter(null);
     setSelectedCompany(null);
+    setSelectedCategory(null);
+    setSelectedSubcategory(null);
     const categoryFilterElement = document.getElementById("categoryFilter") as HTMLSelectElement;
     if (categoryFilterElement) {
       categoryFilterElement.selectedIndex = 0; 
     }
     fetchProducts();
-  }, [initialProducts]);
+};
+
   const handleResetFilters = () => {
     resetFilters();
   };

@@ -35,9 +35,9 @@
 }
 
 .sidebar-items {
-    height: 100%;
-    width: 100%;
-    margin-top: 50px;
+   
+    margin-top: -300px;
+    margin-left: -6px;
 
     
 }
@@ -53,17 +53,20 @@
     justify-content: flex-start;
     cursor: pointer;
     width: 100%;
+    padding: 20px 10px;
+    margin: 12px 24px;
 }
 
-.sidebar-item:hover {
-    background-color: var(--color-secondary);
-}
+
 
 .sidebar-item-active {
+  
+    
+
     display: flex;
     align-items: center;
-    padding: 12px 20px;
-    margin: 2px 0;
+    padding: 12px 12px;
+    margin: 12px 24px;
     color: var(--color-white);
     background-color: #0c3568;
     text-decoration: none;
@@ -71,10 +74,15 @@
     cursor: pointer;
     transition: all 0.3s ease;
     gap: 10px; 
+    border-radius: 8px;
+   
+
+    
     
     
     
 }
+
 
 .sidebar-item-active:hover {
     background-color: #0c3568;

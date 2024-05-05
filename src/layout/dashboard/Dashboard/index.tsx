@@ -5,8 +5,10 @@ import { DashboardComponents } from "@components";
 import { ROUTES } from "@utils";
 import styles from "../dashboard.module.css";
 import './dashboard.css'; 
-import { Route } from "react-router-dom";
-import { FiArrowUp, FiArrowDown } from 'react-icons/fi'; 
+import jsPDF from 'jspdf';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faImage, faFilePdf } from '@fortawesome/free-solid-svg-icons';
+
 
 
 interface Product {
@@ -35,6 +37,7 @@ interface Product {
 interface Modification {
   dateModification: Date;
   ancienPrix: string;
+  nouveauPrix:string;
 }
 
 const getCurrentDate = () => {
@@ -43,6 +46,30 @@ const getCurrentDate = () => {
 };
 
 
+const downloadChartAsImage = (chartId: string, imageFormat: 'png' | 'jpeg' = 'png') => {
+  const canvas = document.getElementById(chartId) as HTMLCanvasElement;
+  if (canvas) {
+    const imageURI = canvas.toDataURL(`image/${imageFormat}`);
+    const link = document.createElement('a');
+    link.download = `${chartId}.${imageFormat}`;
+    link.href = imageURI;
+    link.click();
+  }
+};
+
+const downloadChartAsPDF = (chartId: string, title: string) => {
+  const canvas = document.getElementById(chartId) as HTMLCanvasElement;
+  if (canvas) {
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+    });
+    pdf.addImage(imgData, 'PNG', 10, 10, 280, 150);
+    pdf.text(title, 10, 10);
+    pdf.save(`${title}.pdf`);
+  }
+};
+
 export const Dashboard = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [newProductsCount, setNewProductsCount] = useState(0);
@@ -50,6 +77,8 @@ export const Dashboard = () => {
   const [initialProducts, setInitialProducts] = useState<Product[]>([]);
   const [priceIncreaseCount, setPriceIncreaseCount] = useState(0);
   const [priceDecreaseCount, setPriceDecreaseCount] = useState(0);
+  const [showDownloadButtons, setShowDownloadButtons] = useState(true);
+
 
   useEffect(() => {
     fetchProducts();
@@ -106,11 +135,11 @@ export const Dashboard = () => {
   
       drawAvailabilityChart(products);
       drawNewProductsChart(products);
-      drawModifiedProductsChart(products,uniqueDates);
       drawCategoryDistributionChart(products);
       drawMostModifiedProductsChart(products);
       drawAveragePriceByCategoryChart(products);
-      drawPriceChangeCharts(products);
+      drawProductAvailabilityByCategoryChart(products);
+      drawPriceChangesChart(products,uniqueDates);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
@@ -122,67 +151,174 @@ export const Dashboard = () => {
   };
 
 
-  const drawModifiedProductsChart = (products: Product[], dates: Date[]) => {
-    // Créer un dictionnaire pour compter les modifications par jour
-    const modifiedProductsPerDay: Record<string, number> = {};
+  const drawProductAvailabilityByCategoryChart = (products: Product[]) => {
+    const availabilityByCategory: Record<string, { inStock: number; outOfStock: number; onOrder: number; }> = {};
   
-    // Initialiser le dictionnaire avec toutes les dates possibles (déjà triées)
-    dates.sort((a, b) => a.getTime() - b.getTime()).forEach(date => {
-      const formattedDate = formatDate(date);
-      modifiedProductsPerDay[formattedDate] = 0;
+    // Aggregate data by category
+    products.forEach(product => {
+      if (!availabilityByCategory[product.Category]) {
+        availabilityByCategory[product.Category] = { inStock: 0, outOfStock: 0, onOrder: 0 };
+      }
+      switch (product.Stock) {
+        case "En stock":
+          availabilityByCategory[product.Category].inStock++;
+          break;
+        case "Hors stock":
+          availabilityByCategory[product.Category].outOfStock++;
+          break;
+        case "Sur commande":
+          availabilityByCategory[product.Category].onOrder++;
+          break;
+      }
     });
   
-    // Compter les modifications pour chaque produit
-    products.forEach((product: Product) => {
-      product.Modifications?.forEach(modification => {
-        const modDate = formatDate(modification.dateModification);
-        if (modifiedProductsPerDay.hasOwnProperty(modDate)) {
-          modifiedProductsPerDay[modDate]++;
-        }
-      });
-    });
+    // Prepare chart data
+    const categories = Object.keys(availabilityByCategory);
+    const inStock = categories.map(cat => availabilityByCategory[cat].inStock);
+    const outOfStock = categories.map(cat => availabilityByCategory[cat].outOfStock);
+    const onOrder = categories.map(cat => availabilityByCategory[cat].onOrder);
   
-    // Préparation des données pour le graphique
-    const labels = Object.keys(modifiedProductsPerDay);
-    const data = labels.map(label => modifiedProductsPerDay[label]);
-  
-    // Configuration et création du graphique
-    const ctx = document.getElementById('modifiedProductsChart') as HTMLCanvasElement;
+    // Set up the canvas and context
+    const canvas = document.getElementById('availabilityByCategoryChart') as HTMLCanvasElement;
+    const ctx = canvas?.getContext('2d');
     if (ctx) {
       new Chart(ctx, {
-        type: 'line',
+        type: 'bar',
         data: {
-          labels,
-          datasets: [{
-            label: 'Nombre des Produits Modifiés',
-            data,
-            borderColor: '#6495ED',
-            fill: false
-          }]
+          labels: categories,
+          datasets: [
+            {
+              label: 'En stock',
+              data: inStock,
+              backgroundColor: '#006400'
+            },
+            {
+              label: 'Hors stock',
+              data: outOfStock,
+              backgroundColor: 'red'
+            },
+            {
+              label: 'Sur commande',
+              data: onOrder,
+              backgroundColor: '#FFD700'
+            }
+          ]
         },
         options: {
-          animation: {
-            duration: 2000, 
-            easing: 'easeInOutBounce' 
-          },
           scales: {
+            x: {
+              stacked: false // Ensure the bars are not stacked
+            },
             y: {
+              stacked: false, // Ensure the bars are not stacked
               beginAtZero: true
             }
           },
           plugins: {
             legend: {
-              display: true
+              position: 'top'
             },
             title: {
               display: true,
-              text: 'Nombre des produits modifiés par jour'
+              text: 'Disponibilité des Produits par Catégorie'
             }
           }
         }
       });
     }
-  };
+};
+
+
+
+
+
+
+const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
+  const priceIncreasesPerDay: Record<string, number> = {};
+  const priceDecreasesPerDay: Record<string, number> = {};
+  const modificationsPerDay: Record<string, number> = {};
+
+  // Trier les dates avant de les utiliser
+  const sortedRecentDates = recentDates.sort((a, b) => a.getTime() - b.getTime());
+
+  sortedRecentDates.forEach(date => {
+    const formattedDate = formatDate(date);
+    priceIncreasesPerDay[formattedDate] = 0;
+    priceDecreasesPerDay[formattedDate] = 0;
+    modificationsPerDay[formattedDate] = 0;
+  });
+
+  products.forEach((product: Product) => {
+    product.Modifications?.forEach((modification) => {
+      const modDateStr = formatDate(new Date(modification.dateModification));
+      if (sortedRecentDates.some(date => formatDate(date) === modDateStr)) {
+        const previousPrice = parseFloat(modification.ancienPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
+        let currentPrice = previousPrice;
+        if (modification.nouveauPrix) {
+          currentPrice = parseFloat(modification.nouveauPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
+        }
+
+        modificationsPerDay[modDateStr]++;
+        if (previousPrice < currentPrice) {
+          priceIncreasesPerDay[modDateStr]++;
+        } else if (previousPrice > currentPrice) {
+          priceDecreasesPerDay[modDateStr]++;
+        }
+      }
+    });
+  });
+
+  const sortedDates = Object.keys(modificationsPerDay).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  const ctx = document.getElementById('combinedPriceChangesChart') as HTMLCanvasElement;
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: sortedDates,
+        datasets: [{
+            label: 'Modifications Totales',
+            data: sortedDates.map(date => modificationsPerDay[date]),
+            borderColor: '#6495ED',
+            fill: false
+          }, {
+            label: 'Augmentations de Prix',
+            data: sortedDates.map(date => priceIncreasesPerDay[date]),
+            borderColor: '#228B22',
+            fill: false
+          }, {
+            label: 'Diminutions de Prix',
+            data: sortedDates.map(date => priceDecreasesPerDay[date]),
+            borderColor: '#C71585',
+            fill: false
+        }]
+      },
+      options: {
+        animation: {
+          duration: 2000,
+          easing: 'easeInOutBounce'
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        },
+        plugins: {
+          legend: {
+            display: true
+          },
+          title: {
+            display: true,
+            text: 'Changements de Prix et Modifications'
+          }
+        }
+      }
+    });
+  }
+};
+
+
+  
   
   
     const drawAvailabilityChart = (products: Product[]) => {
@@ -241,85 +377,17 @@ export const Dashboard = () => {
             }
           }
         });
+        
       }
     };
   
     const formatDate = (date: Date | string): string => {
       return new Date(date).toLocaleDateString('fr-FR', {
-        year: 'numeric', month: 'long', day: 'numeric'
+          year: 'numeric', month: 'long', day: 'numeric'
       });
-    };
+  };
+  
     
-    const drawPriceChangeCharts = (products: Product[]) => {
-      const priceIncreasesPerDay: Record<string, number> = {};
-      const priceDecreasesPerDay: Record<string, number> = {};
-  
-      products.forEach((product: Product) => {
-          product.Modifications?.forEach((modification, index, modifications) => {
-              if (index === 0) return; 
-              const currentMod = modification;
-              const previousMod = modifications[index - 1];
-              const modDate = formatDate(currentMod.dateModification);
-  
-              const previousPrice = parseFloat(previousMod.ancienPrix.replace(/[^\d\.]/g, ""));
-              const currentPrice = parseFloat(currentMod.ancienPrix.replace(/[^\d\.]/g, ""));
-              console.log(`ModDate: ${modDate}, PrevPrice: ${previousPrice}, CurrPrice: ${currentPrice}`);
-  
-              if (previousPrice < currentPrice) {
-                  priceIncreasesPerDay[modDate] = (priceIncreasesPerDay[modDate] || 0) + 1;
-              } else if (previousPrice > currentPrice) {
-                  priceDecreasesPerDay[modDate] = (priceDecreasesPerDay[modDate] || 0) + 1;
-              }
-          });
-      });
-  
-      console.log('Increases:', priceIncreasesPerDay);
-      console.log('Decreases:', priceDecreasesPerDay);
-  
-      drawChart(priceIncreasesPerDay, 'priceIncreasesChart', 'Augmentations de Prix', '#228B22');
-      drawChart(priceDecreasesPerDay, 'priceDecreasesChart', 'Diminutions de Prix', '#FF6347');
-    };
-  
-    const drawChart = (data: Record<string, number>, chartId: string, label: string, borderColor: string) => {
-      const sortedDates = Object.keys(data).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-      const recentDates = sortedDates.slice(Math.max(sortedDates.length - 7, 0));
-  
-      const ctx = document.getElementById(chartId) as HTMLCanvasElement;
-      if (ctx) {
-        new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: recentDates,
-            datasets: [{
-              label: label,
-              data: recentDates.map(date => data[date]),
-              borderColor: borderColor,
-              fill: false
-            }]
-          },
-          options: {
-            animation: {
-              duration: 2000, 
-              easing: 'easeInOutBounce' 
-            },
-            scales: {
-              y: {
-                beginAtZero: true
-              }
-            },
-            plugins: {
-              legend: {
-                display: true
-              },
-              title: {
-                display: true,
-                text: label
-              }
-            }
-          }
-        });
-      }
-    };
   
     const drawNewProductsChart = (products: Product[]) => {
       const newProductsPerDay: Record<string, number> = {};
@@ -367,8 +435,11 @@ export const Dashboard = () => {
             }
           }
         });
+        
       }
     };
+    
+    
   
     const drawCategoryDistributionChart = (products: Product[]) => {
       const categoryCounts = products.reduce((acc: Record<string, number>, product) => {
@@ -558,64 +629,219 @@ export const Dashboard = () => {
               value={unavailableProductsCount}
               icon="/icons/product.svg"
             />
-            
-  
-            <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="competitorChart" width="400" height="200"></canvas>
-          </div>
-          
+           <div className="graph-container">
+        <div className="canvas-wrapper">
+          <canvas id="competitorChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('competitorChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('competitorChart', 'Competitor Chart')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
         </div>
-  
+      </div>
+
+
+
+
+
+
+
+
         <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="newProductsChart" width="400" height="200"></canvas>
-          </div>
+        <div className="canvas-wrapper">
+          <canvas id="availabilityByCategoryChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('availabilityByCategoryChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('availabilityByCategoryChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
         </div>
-  
-        
-        <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="modifiedProductsChart" width="400" height="200"></canvas>
-          </div></div>   
+      </div>
+
+
+
+
+      <div className="graph-container">
+        <div className="canvas-wrapper">
+          <canvas id="averagePriceByCategoryChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('averagePriceByCategoryChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('averagePriceByCategoryChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+
+      <div className="graph-container">
+        <div className="canvas-wrapper">
+          <canvas id="newProductsChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('newProductsChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('newProductsChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+
+
+      <div className="graph-container">
+        <div className="canvas-wrapper">
+          <canvas id="combinedPriceChangesChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('combinedPriceChangesChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('combinedPriceChangesChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+
+
+
+         
+
+
+      <div className="graph-container">
+        <div className="canvas-wrapper">
+          <canvas id="mostModifiedProductsChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('mostModifiedProductsChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('mostModifiedProductsChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+
+
       
   
+  <div><div></div></div>
   
+
   <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="priceIncreasesChart" width="400" height="200"></canvas>
-          </div></div>
+        <div className="canvas-wrapper">
+          <canvas id="categoryChart" width="700" height="500"></canvas>
+          {showDownloadButtons && (
+            <div className="vertical-icon-container">
+              <FontAwesomeIcon 
+                icon={faImage} 
+                onClick={() => downloadChartAsImage('categoryChart', 'png')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as Image"
+              />
+              <FontAwesomeIcon 
+                icon={faFilePdf} 
+                onClick={() => downloadChartAsPDF('categoryChart', '')} 
+                className="icon-button" 
+                style={{ cursor: 'pointer' }} 
+                title="Download as PDF"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+  
+        
   
   
-          <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="priceDecreasesChart" width="400" height="200"></canvas>
-          </div></div>
-          <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="mostModifiedProductsChart" width="400" height="200"></canvas>
-          </div></div>
-  
-  
-  
-  
-          <div className="graph-container">
-          <div className="canvas-wrapper">
-            <canvas id="averagePriceByCategoryChart" width="400" height="200"></canvas>
-          </div></div>
-  
-  
-          <div className="graph-container" >
-          {/*<div className="graph-title">Modified Products Daily</div>*/}
-  
-          <div className="canvas-wrapper">
-            <canvas id="categoryChart" width="400" height="200" ></canvas>
-          </div></div>
-  
-  
+         
+
+
+       
           </div>
         </div>
         
       </div>
     );
   };
+  
