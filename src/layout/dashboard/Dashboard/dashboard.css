@@ -1,14 +1,15 @@
+/* Add this to your dashboard.css */
 .graph-container {
   background: #fff;
   border-radius: 25px;
   box-shadow: 0 4px 6px rgba(236, 218, 89, 0.1);
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   padding: 15px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   border: 0.001px solid rgb(227, 243, 182);
-
+width: 420px;
 }
 
 .graph-title {
@@ -43,7 +44,7 @@
 .icon-button {
   background: none;
   border: none;
-  color: #0f2056; 
+  color: var(--color-primary); 
   cursor: pointer;
   padding: 2px;
   margin: 2px;
@@ -54,6 +55,13 @@
 
 }
 
+.row {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  margin-bottom: 20px;
+
+}
 
 .icon-button:hover {
   color: #1f3fa7; /* darker shade for hover effect */
@@ -62,3 +70,33 @@
 .icon-button:focus {
   outline: none; /* removes the focus outline */
 }
+
+.select_company {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 16px;
+  color: #333;
+  width: 100px;
+  height: 20px;
+  margin-left: 10px;
+}
+
+
+.select_company:focus {
+  outline: none;
+  border-color: #0064a5;
+  box-shadow: 0 0 4px rgba(0, 100, 165, 0.5);
+}
+.icon-toggle {
+  display: flex;
+  align-items: center;
+  color: var(--color-primary); 
+  margin: -10px 0;
+}
+
+.icon-toggle:hover {
+  color: #0056b3; 
+}
+.eye_icon{margin-top: -320px;}

@@ -23,7 +23,7 @@ export const SideBar = () => {
 
         <div className="sidebar-items">
           <Link to={ROUTES.DASHBOARD} className={path === ROUTES.DASHBOARD ? "sidebar-item-active" : "sidebar-item"}>
-            <img src="/icons/dashboard.svg" alt="Dashboard" className="sidebar-item-icon" />
+            <img src="/icons/tableau_de_board_icon.png" alt="Dashboard" className="sidebar-item-icon" />
             {isOpen && <span className="sidebar-item-label">Tableau de board</span>}
           </Link>
           <Link to={ROUTES.PRODUCTS} className={path === ROUTES.PRODUCTS ? "sidebar-item-active" : "sidebar-item"}>

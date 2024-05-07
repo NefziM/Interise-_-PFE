@@ -8,6 +8,7 @@ import './dashboard.css';
 import jsPDF from 'jspdf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faImage, faFilePdf } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
 
 
@@ -78,73 +79,87 @@ export const Dashboard = () => {
   const [priceIncreaseCount, setPriceIncreaseCount] = useState(0);
   const [priceDecreaseCount, setPriceDecreaseCount] = useState(0);
   const [showDownloadButtons, setShowDownloadButtons] = useState(true);
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [showGraph, setShowGraph] = useState(true);
 
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+}, [selectedCompany]);  
+
 
   const fetchProducts = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/products');
-      const products: Product[] = response.data;
-      setInitialProducts(products);
-  
-      const today = new Date().setHours(0, 0, 0, 0);
-      const uniqueProductRefs = new Set<string>();
-      let newProductsSet = new Set<string>();
-      let modifiedProductsSet = new Set<string>();
-      let priceIncreases = 0;
-      let priceDecreases = 0;
-  
-      products.forEach((product: Product) => {
-        // Ajouter la référence du produit à l'ensemble des références uniques
-        uniqueProductRefs.add(product.Ref);
-  
-        // Vérifier l'ajout de produits nouveaux aujourd'hui
-        if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today) {
-          newProductsSet.add(product.Ref);
-        }
-  
-        product.Modifications?.forEach((modification, index, modifications) => {
-          const modDate = new Date(modification.dateModification).setHours(0, 0, 0, 0);
-          if (modDate === today) {
-            modifiedProductsSet.add(product.Ref);
-            let nextPrice = parseFloat(product.Price.replace(/[^\d.,]/g, "").replace(',', '.'));
-            const currentPrice = parseFloat(modification.ancienPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
-            if (currentPrice > nextPrice) {
-              priceDecreases++;
-            } else if (currentPrice < nextPrice) {
-              priceIncreases++;
+        const response = await axios.get('http://localhost:5000/api/products');
+        const allProducts: Product[] = response.data;
+        const filteredProducts = selectedCompany ? allProducts.filter(product => product.Company === selectedCompany) : allProducts;
+
+
+        setInitialProducts(filteredProducts);
+
+        const today = new Date().setHours(0, 0, 0, 0);
+        const uniqueProductRefs = new Set<string>();
+        let newProductsSet = new Set<string>();
+        let modifiedProductsSet = new Set<string>();
+        let priceIncreases = 0;
+        let priceDecreases = 0;
+
+        filteredProducts.forEach((product: Product) => {
+            // Ajouter la référence du produit à l'ensemble des références uniques
+            uniqueProductRefs.add(product.Ref);
+
+            // Vérifier l'ajout de produits nouveaux aujourd'hui
+            if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today) {
+                newProductsSet.add(product.Ref);
             }
-          }
+
+            
+
+            product.Modifications?.forEach((modification) => {
+                const modDate = new Date(modification.dateModification).setHours(0, 0, 0, 0);
+                if (modDate === today) {
+                    modifiedProductsSet.add(product.Ref);
+                    let nextPrice = parseFloat(product.Price.replace(/[^\d.,]/g, "").replace(',', '.'));
+                    const currentPrice = parseFloat(modification.ancienPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
+                    if (currentPrice > nextPrice) {
+                        priceDecreases++;
+                    } else if (currentPrice < nextPrice) {
+                        priceIncreases++;
+                    }
+                }
+            });
+            
         });
-      });
-      let allModificationDates: Date[] = products.flatMap(product => 
-        product.Modifications?.map(modification => new Date(modification.dateModification)) ?? []
-    );
-      const uniqueDates = Array.from(new Set(allModificationDates.map(date => date.toISOString().slice(0, 10))))
-      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())
-      .slice(0, 7)
-      .map((date: string) => new Date(date));
-      setTotalProducts(uniqueProductRefs.size);
-      setNewProductsCount(newProductsSet.size);
-      setModifiedProductsCount(modifiedProductsSet.size);
-      setPriceIncreaseCount(priceIncreases);
-      setPriceDecreaseCount(priceDecreases);
-  
-      drawAvailabilityChart(products);
-      drawNewProductsChart(products);
-      drawCategoryDistributionChart(products);
-      drawMostModifiedProductsChart(products);
-      drawAveragePriceByCategoryChart(products);
-      drawProductAvailabilityByCategoryChart(products);
-      drawPriceChangesChart(products,uniqueDates);
+
+        let allModificationDates: Date[] = filteredProducts.flatMap(product => 
+            product.Modifications?.map(modification => new Date(modification.dateModification)) ?? []
+        );
+        const uniqueDates = Array.from(new Set(allModificationDates.map(date => date.toISOString().slice(0, 10))))
+        .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())
+        .slice(0, 7)
+        .map((date: string) => new Date(date));
+
+        // Set the total products to the length of filtered products
+        setTotalProducts(filteredProducts.length);
+        setNewProductsCount(newProductsSet.size);
+        setModifiedProductsCount(modifiedProductsSet.size);
+        setPriceIncreaseCount(priceIncreases);
+        setPriceDecreaseCount(priceDecreases);
+        setInitialProducts(filteredProducts);
+
+        // Drawing charts with filtered products
+        drawAvailabilityChart(filteredProducts);
+        drawNewProductsChart(filteredProducts);
+        drawCategoryDistributionChart(filteredProducts);
+        drawMostModifiedProductsChart(filteredProducts);
+        drawAveragePriceByCategoryChart(filteredProducts);
+        drawProductAvailabilityByCategoryChart(filteredProducts);
+        drawPriceChangesChart(filteredProducts, uniqueDates);
     } catch (error) {
-      console.error('Error fetching products:', error);
+        console.error('Error fetching products:', error);
     }
-  };
-  
+};
+
 
   const drawCharts = (products: Product[]) => {
 
@@ -582,17 +597,22 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
         });
       }
     };
-    const availableProductsCount = initialProducts.filter(product => product.Stock === "En stock").length;
-    const unavailableProductsCount = initialProducts.filter(product => product.Stock === "Sur commande").length;
-    const horsstockProductsCount = initialProducts.filter(product => product.Stock === "Hors stock").length;
-  
-  
+ const availableProductsCount = initialProducts.filter(product => product.Stock === "En stock" && (!selectedCompany || product.Company === selectedCompany)).length;
+const unavailableProductsCount = initialProducts.filter(product => product.Stock === "Sur commande" && (!selectedCompany || product.Company === selectedCompany)).length;
+const horsstockProductsCount = initialProducts.filter(product => product.Stock === "Hors stock" && (!selectedCompany || product.Company === selectedCompany)).length;
+
+    const companyOptions = Array.from(new Set(initialProducts.map(p => p.Company)));
+
     return (
+      
       <div className={styles.dashboard_content}>
+        
         <div className={styles.dashboard_content_container}>
+          
           <div className={styles.dashboard_content_header}>
+
           </div>
-  
+ 
           <div className={styles.dashboard_cards}>
             <DashboardComponents.StatCard
               title="Tous les Produits"
@@ -629,6 +649,15 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
               value={unavailableProductsCount}
               icon="/icons/product.svg"
             />
+ 
+</div>       <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)} className="select_company">
+    <option value="">Sélectionnez un concurrent</option>
+    {companyOptions.map(company => (
+        <option key={company} value={company}>{company}</option>
+    ))}
+  </select>
+
+<div className="row">
            <div className="graph-container">
         <div className="canvas-wrapper">
           <canvas id="competitorChart" width="700" height="500"></canvas>
@@ -656,13 +685,23 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
 
 
 
-
-
+     
 
 
         <div className="graph-container">
+          
+     {/*   <div className="icon-toggle" style={{ cursor: 'pointer' }} onClick={() => setShowGraph(!showGraph)}>
+    <FontAwesomeIcon icon={showGraph ? faEyeSlash : faEye} className="eye_icon" /> {showGraph ? "" : ""} 
+        </div>{showGraph && <canvas id="someChartId"></canvas>}  */ }
+
         <div className="canvas-wrapper">
+  
+
           <canvas id="availabilityByCategoryChart" width="700" height="500"></canvas>
+   
+
+
+
           {showDownloadButtons && (
             <div className="vertical-icon-container">
               <FontAwesomeIcon 
@@ -711,8 +750,9 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
         </div>
       </div>
 
+</div>
 
-
+<div className="row">
 
       <div className="graph-container">
         <div className="canvas-wrapper">
@@ -798,16 +838,15 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
         </div>
       </div>
 
-
+</div>
 
 
 
       
   
-  <div><div></div></div>
   
 
-  <div className="graph-container">
+  <div className="graph-container" style={{marginLeft:'470px'}}>
         <div className="canvas-wrapper">
           <canvas id="categoryChart" width="700" height="500"></canvas>
           {showDownloadButtons && (
@@ -834,14 +873,14 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
         
   
   
-         
-
+      
 
        
-          </div>
+    
         </div>
-        
+   
       </div>
+      
     );
   };
   

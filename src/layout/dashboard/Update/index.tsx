@@ -720,12 +720,7 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
           
         )}
 
-{selectedProduct && (
-  <ProductDetails
-    product={selectedProduct}
-    onClose={() => setSelectedProduct(null)}
-  />
-)}
+
 
         {products.length > fetched ? (
           <span className={styles.handle_more_button} onClick={__handleLoadMore}>
@@ -735,6 +730,12 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
 
 
       </div>
+      {selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
 
     </div>
 

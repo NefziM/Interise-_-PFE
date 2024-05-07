@@ -585,7 +585,9 @@ const handleCompanyChange = useCallback(
     <div
       className={`${styles.dashboard_content} products_page product-page-inputs`}
     >
+      
       <div className={styles.dashboard_content_container}>
+        
         <div className={styles.dashboard_content_header}>
           <Input
             type="text"
@@ -632,6 +634,7 @@ const handleCompanyChange = useCallback(
             icon="/icons/product.svg"
           />  
         </div>
+
         <div className={styles.filter_container}>
           <div className={styles.filter_group}>       
             <select
@@ -985,20 +988,24 @@ const handleCompanyChange = useCallback(
   <b>{newProductsCount + modifiedProductsCount}</b>
     </span>
   )}
- {selectedProduct && (
-  <ProductDetails
-    product={selectedProduct}
-    onClose={() => setSelectedProduct(null)}
-  />
-)}
+
 
 {dialogOpen && (
   <div className={styles.dialog}>
     <DialogContent />
   </div>
 )}
+ 
+
         </div>
+
       </div>
+      {selectedProduct && (
+  <ProductDetails
+    product={selectedProduct}
+    onClose={() => setSelectedProduct(null)}
+  />
+)}
     </div>
   );
 };
