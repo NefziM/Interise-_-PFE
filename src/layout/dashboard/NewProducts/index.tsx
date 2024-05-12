@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import ProductDetails from '../ProductDetails';
 import * as XLSX from "xlsx"; 
 import './newproducts.css'; 
+import { FaExclamationCircle } from 'react-icons/fa';
 
 
 interface newProduct {
@@ -52,7 +53,7 @@ const NewProducts: React.FC = () => {
   const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(null);
 const [dateFilter, setDateFilter] = useState<string | null>('jour');
 const [selectedProduct, setSelectedProduct] = useState<newProduct | null>(null);
-
+const [errorMessage, setErrorMessage] = useState<string>('');
 const handleProductClick = (product: newProduct) => {
   setSelectedProduct(product);
 };
@@ -231,13 +232,33 @@ useEffect(() => {
   const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMinPrice(value);
-    filterProducts(value, maxPrice);
+  
+    // Vérifier si le prix maximum est inférieur au prix minimum
+    if (maxPrice && parseFloat(value) > parseFloat(maxPrice)) {
+      // Définir le message d'erreur
+      setErrorMessage('Le prix minimum ne peut pas être supérieur au prix maximum.');
+    } else {
+      // Filtrer les produits avec les nouvelles valeurs de prix
+      filterProducts(value, maxPrice);
+      // Réinitialiser le message d'erreur
+      setErrorMessage('');
+    }
   };
   
   const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setMaxPrice(value);
-    filterProducts(minPrice, value);
+  
+    // Vérifier si le prix minimum est supérieur au prix maximum
+    if (minPrice && parseFloat(value) < parseFloat(minPrice)) {
+      // Définir le message d'erreur
+      setErrorMessage('Le prix maximum ne peut pas être inférieur au prix minimum.');
+    } else {
+      // Filtrer les produits avec les nouvelles valeurs de prix
+      filterProducts(minPrice, value);
+      // Réinitialiser le message d'erreur
+      setErrorMessage('');
+    }
   };
   
   const uniqueProducts: newProduct[] = [];
@@ -432,6 +453,12 @@ useEffect(() => {
           <div className={styles.filter_group}>
             <input type="number" value={maxPrice} onChange={handleMaxPriceChange} placeholder='Prix max'/>
           </div>
+          {errorMessage && (
+  <div className={styles.errorMessage}>
+    <FaExclamationCircle className={styles.errorIcon} />
+    <p>{errorMessage}</p>
+  </div>
+)}
           
           <div className={styles.filter_group}>
             <select value={priceFilter || ""} onChange={handlePriceFilterChange}>

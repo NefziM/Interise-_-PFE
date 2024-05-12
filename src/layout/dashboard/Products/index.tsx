@@ -8,6 +8,7 @@ import { ROUTES } from "../../../utils/routes";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx"; 
 import ProductDetails from '../ProductDetails';
+import { FaExclamationCircle } from 'react-icons/fa';
 interface Product {
   Ref: string;
   Designation: string;
@@ -68,11 +69,10 @@ const [unavailableProductsCount, setUnavailableProductsCount] = useState(0);
   const [deletedProductsCount, setDeletedProductsCount] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
   };
-  const today = useMemo(() => new Date(), []);
   const toggleDialog = () => {
     setDialogOpen(!dialogOpen);
   };
@@ -427,21 +427,44 @@ const handleCompanyChange = useCallback(
   [products, initialProducts, calculateStatistics]
 );
   
-    const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value;
-      setMinPrice(value);
-      const filteredProducts = filterProducts(value, maxPrice);
-      setProducts(filteredProducts);
-      calculateStatistics(filteredProducts);
-    };
-    
-    const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value;
-      setMaxPrice(value);
-      const filteredProducts = filterProducts(minPrice, value);
-      setProducts(filteredProducts);
-      calculateStatistics(filteredProducts);
-    };
+const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const value = event.target.value;
+  setMinPrice(value);
+
+  // Vérifier si le prix maximum est inférieur au prix minimum
+  if (maxPrice && parseFloat(value) > parseFloat(maxPrice)) {
+    // Définir le message d'erreur
+    setErrorMessage('Le prix minimum ne peut pas être supérieur au prix maximum.');
+  } else {
+    // Réinitialiser le message d'erreur
+    setErrorMessage('');
+
+    // Filtrer les produits avec les nouvelles valeurs de prix
+    const filteredProducts = filterProducts(value, maxPrice);
+    setProducts(filteredProducts);
+    calculateStatistics(filteredProducts);
+  }
+};
+
+const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const value = event.target.value;
+  setMaxPrice(value);
+
+  // Vérifier si le prix minimum est supérieur au prix maximum
+  if (minPrice && parseFloat(value) < parseFloat(minPrice)) {
+    // Définir le message d'erreur
+    setErrorMessage('Le prix maximum ne peut pas être inférieur au prix minimum.');
+  } else {
+    // Réinitialiser le message d'erreur
+    setErrorMessage('');
+
+    // Filtrer les produits avec les nouvelles valeurs de prix
+    const filteredProducts = filterProducts(minPrice, value);
+    setProducts(filteredProducts);
+    calculateStatistics(filteredProducts);
+  }
+};
+
     const filterProducts = (min: string, max: string): Product[] => {
       const minPriceValue = min ? parseFloat(min.replace(/\s/g, '').replace(',', '.')) : Number.MIN_VALUE;
       const maxPriceValue = max ? parseFloat(max.replace(/\s/g, '').replace(',', '.')) : Number.MAX_VALUE;
@@ -679,6 +702,12 @@ const handleCompanyChange = useCallback(
               onChange={handleMaxPriceChange}
             />
           </div>
+          {errorMessage && (
+  <div className={styles.errorMessage}>
+    <FaExclamationCircle className={styles.errorIcon} />
+    <p>{errorMessage}</p>
+  </div>
+)}
           <div className={styles.filter_group}>
             <select
               value={priceFilter || ""}

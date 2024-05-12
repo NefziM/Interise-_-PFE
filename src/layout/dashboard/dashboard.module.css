@@ -639,7 +639,18 @@ select {
     margin-left: -10px;
     margin-top: 17px;           
 }
-
+.errorMessage {
+    position: absolute;
+    color: red;
+    font-size: 14px;
+    margin-bottom: 5px;
+    margin-top: -100px;
+   margin-left: 350px;
+  }
+  .errorIcon{position: absolute;
+margin-top: 15px;
+margin-left: -18px;}
+  
   
 
 

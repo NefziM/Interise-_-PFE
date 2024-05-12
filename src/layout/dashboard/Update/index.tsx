@@ -5,6 +5,7 @@ import { Input } from '@components';
 import { DashboardComponents } from '@components';
 import * as XLSX from "xlsx"; 
 import ProductDetails from '../ProductDetails';
+import { FaExclamationCircle } from 'react-icons/fa';
 
 interface Product {
   Ref: string;
@@ -49,7 +50,7 @@ const Update: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<string | null>('jour');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [priceChangeType, setPriceChangeType] = useState<string | null>(null);
-
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
   };
@@ -224,18 +225,37 @@ const Update: React.FC = () => {
     XLSX.writeFile(wb, `FilteredProducts_${new Date().toISOString().split('T')[0]}.xlsx`);
 }, [initialProducts, minPrice, maxPrice, selectedCompany, availabilityFilter, priceFilter, dateFilter, search, priceChangeType]);
 
-  const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setMinPrice(value);
-    filterProducts(value, maxPrice, 'min');
-  };
+const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const value = event.target.value;
+  setMinPrice(value);
 
-  const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setMaxPrice(value);
+  // Vérifier si le prix maximum est inférieur au prix minimum
+  if (maxPrice && parseFloat(value) > parseFloat(maxPrice)) {
+    // Définir le message d'erreur
+    setErrorMessage('Le prix minimum ne peut pas être supérieur au prix maximum.');
+  } else {
+    // Filtrer les produits avec les nouvelles valeurs de prix
+    filterProducts(value, maxPrice, 'min');
+    // Réinitialiser le message d'erreur
+    setErrorMessage('');
+  }
+};
+
+const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const value = event.target.value;
+  setMaxPrice(value);
+
+  // Vérifier si le prix minimum est supérieur au prix maximum
+  if (minPrice && parseFloat(value) < parseFloat(minPrice)) {
+    // Définir le message d'erreur
+    setErrorMessage('Le prix maximum ne peut pas être inférieur au prix minimum.');
+  } else {
+    // Filtrer les produits avec les nouvelles valeurs de prix
     filterProducts(minPrice, value, 'max');
-  };
-  
+    // Réinitialiser le message d'erreur
+    setErrorMessage('');
+  }
+};
 
   const filterProducts = (min: string, max: string, filterType: 'min' | 'max') => {
     const minPriceValue = parseFloat(min.replace(/\s/g, '').replace(',', '.'));
@@ -545,7 +565,12 @@ const { priceIncreaseCount, priceDecreaseCount } = getPriceChanges(products);
           <div className={styles.filter_group}>
             <input type="number" value={maxPrice} onChange={handleMaxPriceChange} placeholder='Prix max'/>
           </div>
-          
+          {errorMessage && (
+  <div className={styles.errorMessage}>
+    <FaExclamationCircle className={styles.errorIcon} />
+    <p>{errorMessage}</p>
+  </div>
+)}
           <div className={styles.filter_group}>
             <select value={priceFilter || ''} onChange={handlePriceFilterChange}>
               <option value="" style={{color:'gray'}}>Trier par prix</option>
