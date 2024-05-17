@@ -179,6 +179,8 @@ export const Dashboard = () => {
           availabilityByCategory[product.Category].inStock++;
           break;
         case "Hors stock":
+        case "Rupture de stock":
+        case "En arrivage":
           availabilityByCategory[product.Category].outOfStock++;
           break;
         case "Sur commande":
@@ -186,6 +188,7 @@ export const Dashboard = () => {
           break;
       }
     });
+    
   
     // Prepare chart data
     const categories = Object.keys(availabilityByCategory);
@@ -599,7 +602,7 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
     };
  const availableProductsCount = initialProducts.filter(product => product.Stock === "En stock" && (!selectedCompany || product.Company === selectedCompany)).length;
 const unavailableProductsCount = initialProducts.filter(product => product.Stock === "Sur commande" && (!selectedCompany || product.Company === selectedCompany)).length;
-const horsstockProductsCount = initialProducts.filter(product => product.Stock === "Hors stock" && (!selectedCompany || product.Company === selectedCompany)).length;
+const horsstockProductsCount = initialProducts.filter(product => ["Hors stock", "Rupture de stock", "En arrivage"].includes(product.Stock) && (!selectedCompany || product.Company === selectedCompany)).length;
 
     const companyOptions = Array.from(new Set(initialProducts.map(p => p.Company)));
 

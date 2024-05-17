@@ -71,11 +71,11 @@ useEffect(() => {
       (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
       (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
 
-    const meetsStockCriteria = !availabilityFilter || 
+      const meetsStockCriteria = !availabilityFilter || 
       (availabilityFilter === "available" && product.Stock === "En stock") ||
       (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-      (availabilityFilter === "horstock" && product.Stock === "Hors stock");
-
+      (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
+    
     const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
 
     const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
@@ -145,9 +145,52 @@ useEffect(() => {
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
       setSelectedCompany(value === "All" ? null : value);
+      
+      const filteredProducts = value === "All"
+        ? initialProducts
+        : initialProducts.filter(product => product.Company === value);
+      
+      // Appliquer les autres filtres sur les produits filtrés par concurrent
+      const filteredProductsByOtherFilters = applyOtherFilters(filteredProducts);
+      
+      setProducts(filteredProductsByOtherFilters);
     },
-    []
+    [initialProducts, dateFilter, search, priceFilter, maxPrice, minPrice, availabilityFilter]
   );
+  const applyOtherFilters = (filteredProducts: newProduct[]) => {
+    const filteredByDate = filterNewProductsByDateRange(filteredProducts);
+    const filteredBySearch = filteredByDate.filter(product => 
+      product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+      product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+      product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+      product.Company.toLowerCase().includes(search.toLowerCase()) ||
+      product.Brand.toLowerCase().includes(search.toLowerCase())
+    );
+    
+    // Appliquer les autres filtres (prix, disponibilité, tri) sur les produits filtrés par concurrent
+    const filteredByOtherFilters = filteredBySearch.filter((product) => {
+      const meetsPriceCriteria =
+        (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+        (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+  
+      const meetsStockCriteria = !availabilityFilter || 
+        (availabilityFilter === "available" && product.Stock === "En stock") ||
+        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+        (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
+      
+      const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
+  
+      const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
+  
+      return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsDateFilter;
+    });
+  
+    // Appliquer le tri des produits
+    const sortedProducts = applyPriceFilter(filteredByOtherFilters);
+  
+    return sortedProducts;
+  };
+    
   const filterNewProductsByDateRange = (products: newProduct[]): newProduct[] => {
     const currentDate = new Date();
     let startDate = new Date(currentDate);
@@ -182,9 +225,10 @@ useEffect(() => {
                            (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
       const meetsDateCriteria = !dateFilter || filterNewProductsByDateRange([product]).length > 0;
       const meetsStockCriteria = !availabilityFilter || 
-      (availabilityFilter === "available" && product.Stock === "En stock") ||
-      (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-      (availabilityFilter === "horstock" && product.Stock === "Hors stock");
+  (availabilityFilter === "available" && product.Stock === "En stock") ||
+  (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
+  (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
+
       const meetsSearchCriteria = !search || 
         product.Ref.toLowerCase().includes(search.toLowerCase()) ||
         product.Designation.toLowerCase().includes(search.toLowerCase()) ||
@@ -305,9 +349,9 @@ useEffect(() => {
       } else if (value === "unavailable") {
         filteredProducts = initialProducts.filter(product => product.Stock === "Sur commande");
       } else if (value === "horstock") {
-        filteredProducts = initialProducts.filter(product => product.Stock === "Hors stock");
+        // Inclure également les produits en rupture de stock et en arrivage
+        filteredProducts = initialProducts.filter(product => product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || product.Stock === "En arrivage");
       }
-  
       setProducts(filteredProducts); 
     },
     [initialProducts]
@@ -338,22 +382,22 @@ useEffect(() => {
     })
     : filteredProductsByCompany;
 
-   
-  const filteredProductsByAvailability = availabilityFilter
-      ? availabilityFilter === "available"
+    const filteredProductsByAvailability = availabilityFilter
+    ? availabilityFilter === "available"
+      ? products.filter(
+          (product) => product.Stock === "En stock"
+        )
+      : availabilityFilter === "unavailable"
         ? products.filter(
-            (product) => product.Stock === "En stock"
+            (product) => product.Stock === "Sur commande"
           )
-        : availabilityFilter === "unavailable"
-          ? products.filter(
-              (product) => product.Stock === "Sur commande"
+        : availabilityFilter === "horstock"
+          ? // Inclure également les produits en rupture de stock et en arrivage
+            products.filter(
+              (product) => product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || product.Stock === "En arrivage"
             )
-          : availabilityFilter === "horstock"
-            ? products.filter(
-                (product) => product.Stock === "Hors stock"
-              )
-            : products  
-       : products;
+          : products
+     : products;
   const resetFilters = useCallback(() => {
     setSearch("");
     setPage(1);
@@ -364,7 +408,6 @@ useEffect(() => {
     setMaxPrice("");
     setAvailabilityFilter(null);
     setSelectedCompany(null);
-    setSelectedCompany('All');
     setDateFilter('jour'); 
     fetchProducts(); 
   }, [initialProducts]);
@@ -383,8 +426,8 @@ useEffect(() => {
   const newProductsCount= products.length;
   const availableProductsCount = products.filter(product => product.Stock === "En stock").length;
   const unavailableProductsCount = products.filter(product => product.Stock === "Sur commande").length;
-  const deletedProductsCount = products.filter(product => product.Stock === "Hors stock").length;
-
+  const deletedProductsCount = products.filter(product => 
+    product.Stock === "Hors stock" ||  product.Stock === "En arrivage" || product.Stock === "Rupture de stock").length;
   
   return (
     <div className={`${styles.dashboard_content} products_page product-page-inputs`}>
@@ -430,7 +473,10 @@ useEffect(() => {
 
         <div className={styles.filter_container}>
           <div className={styles.filter_group}>
-            <select value={selectedCompany || "All"} onChange={handleCompanyChange}>
+          <select
+              value={selectedCompany || "All"}
+              onChange={handleCompanyChange}
+            >
               <option value="All" style={{color:'gray'}}>Filtrer par concurrent </option>
               {companyOptions.map((company: string) => (
                 <option key={company} value={company}>
@@ -548,9 +594,9 @@ useEffect(() => {
                       </td>
                       <td>{product.Brand}</td>
                       <td>
-                      <span style={product.Stock === "En stock" ? { color: "green" } : { color: "red" }}>
-                          {product.Stock}</span>
-                      </td>
+                      <span style={product.Stock === "En stock" ? { color: "green" } : product.Stock ==="En arrivage" ? { color : "blue"} : { color: "red" }}>
+                          {product.Stock}
+                        </span>  </td>
 
                       <td>
   {product.DateAjout ? new Date(product.DateAjout).toLocaleDateString() : 'Date non disponible'}
