@@ -1,14 +1,15 @@
 /* page Productdetail.css */
 .productDetails {
   position: fixed;
+  top: 15px;
+  left: 52%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 20px;
-  margin-left: -70px;
-  margin-top: 15px;
- 
+  margin: 5px;
 }
+
 .details{margin-top: -10px;}
 .productImage {
 
@@ -100,3 +101,4 @@
 cursor: pointer;
  margin-left: 1400px;
 }
+

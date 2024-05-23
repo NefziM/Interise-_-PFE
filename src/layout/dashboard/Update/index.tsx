@@ -30,6 +30,8 @@ interface Product {
 interface Modification {
   dateModification: string;
   ancienPrix:string;
+  nouveauPrix: string;
+
 }
 
 const Update: React.FC = () => {
@@ -44,9 +46,9 @@ const Update: React.FC = () => {
   const [displayMode, setDisplayMode] = useState<'table' | 'box'>('table');
   const [availabilityFilter, setAvailabilityFilter] = useState<string | null>(null);
   const [fetched, setFetched] = useState<number>(0);
-  const [selectedCompany, setSelectedCompany] = useState<string | null>('All'); 
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null); 
   const [initialProducts, setInitialProducts] = useState<Product[]>([]);
-  const [companyOptions, setCompanyOptions] = useState<string[]>([]); 
+  const companyOptions = Array.from(new Set(initialProducts.map(product => product.Company)));
   const [dateFilter, setDateFilter] = useState<string | null>('jour');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [priceChangeType, setPriceChangeType] = useState<string | null>(null);
@@ -60,44 +62,81 @@ const Update: React.FC = () => {
   }, [page, pageSize]);
 
   useEffect(() => {
-    const filteredProducts = initialProducts.filter((product) => {
-      const meetsPriceCriteria =
-        (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
-        (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+    applyFilters();
+  }, [initialProducts, availabilityFilter, minPrice, maxPrice, priceFilter, dateFilter, search, selectedCompany, priceChangeType]);
   
-        const meetsStockCriteria = !availabilityFilter || 
-        (availabilityFilter === "available" && product.Stock === "En stock") ||
-        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-        (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
-      
-      const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
-  
-      const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
-  
-      const meetsSearchCriteria = !search || 
-        product.Ref.toLowerCase().includes(search.toLowerCase()) ||
-        product.Designation.toLowerCase().includes(search.toLowerCase()) ||
-        product.Stock.toLowerCase().includes(search.toLowerCase()) ||
-        product.Company.toLowerCase().includes(search.toLowerCase()) ||
-        product.Brand.toLowerCase().includes(search.toLowerCase());
-      return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsDateFilter && meetsSearchCriteria ;
-    });
-  
-    const priceChanges = getPriceChanges(filteredProducts);
-    const priceIncreaseCount = priceChanges.priceIncreaseCount;
-    const priceDecreaseCount = priceChanges.priceDecreaseCount;
-    // Filtrer par le changement de prix
-    const filteredProductsByPriceChange = filteredProducts.filter(product => product.Modifications && product.Modifications.length > 0);
-  
-    // Mettre à jour les options de la société
-    const companyOptions = Array.from(new Set(filteredProductsByPriceChange.map(product => product.Company)));
-    setCompanyOptions(companyOptions);
-  
-    // Appliquer les autres filtres
-    const finalFilteredProducts = filterProductsByDateRange(filteredProductsByPriceChange);
-    setProducts(finalFilteredProducts);
-  }, [initialProducts, availabilityFilter, minPrice, maxPrice, priceFilter, dateFilter, search]);
 
+  const applyFilters = useCallback(() => {
+    let filteredProducts = initialProducts;
+    const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
+  
+
+    // Filtre par concurrent
+    if (selectedCompany) {
+      filteredProducts = filteredProducts.filter(product => product.Company === selectedCompany);
+    }
+
+    // Filtre par gamme de prix
+    if (minPrice || maxPrice) {
+      filteredProducts = filteredProducts.filter(product => {
+        const price = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
+        return (!minPrice || price >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
+               (!maxPrice || price <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
+      });
+    }
+
+
+    // Filtre par disponibilité
+    if (availabilityFilter) {
+      filteredProducts = filteredProducts.filter(product => {
+        switch (availabilityFilter) {
+          case 'available':
+            return product.Stock === "En stock" || product.Stock === "";
+          case 'unavailable':
+            return ["Sur commande", "sur comande", "Sur commande 48h"].includes(product.Stock);
+          case 'horstock':
+            return ["En arrivage", "en arrivage", "en arrvage", "en arrivge", "Rupture de stock", "Hors stock"].includes(product.Stock);
+          default:
+            return true;
+        }
+      });
+    }
+    
+
+    // Filtre par recherche
+    if (search) {
+      filteredProducts = filteredProducts.filter(product => {
+        return product.Ref.toLowerCase().includes(search.toLowerCase()) ||
+               product.Designation.toLowerCase().includes(search.toLowerCase()) ||
+               product.Stock.toLowerCase().includes(search.toLowerCase()) ||
+               product.Company.toLowerCase().includes(search.toLowerCase()) ||
+               product.Brand.toLowerCase().includes(search.toLowerCase());
+      });
+    }
+
+    // Filtre par type de changement de prix
+    if (priceChangeType) {
+      filteredProducts = filteredProducts.filter(product => {
+        const priceChange = calculatePriceChange(product);
+        return (priceChangeType === 'increase' && priceChange > 0) || 
+               (priceChangeType === 'decrease' && priceChange < 0);
+      });
+    }
+    if (dateFilter) {
+      filteredProducts = filterProductsByDateRange(filteredProducts);
+    }
+
+    // Filtre par intervalle de dates
+    filteredProducts = filterProductsByDateRange(filteredProducts);
+
+    // Application du tri par prix
+    filteredProducts = applyPriceFilter(filteredProducts);
+
+    setProducts(filteredProducts);
+    return meetsPriceFilter;
+  }, [initialProducts, selectedCompany, minPrice, maxPrice, availabilityFilter, search, priceChangeType, dateFilter, priceFilter]);
+
+ 
   const fetchProducts = useCallback(() => {
     setLoadingProducts(true);
     axios
@@ -110,12 +149,10 @@ const Update: React.FC = () => {
       .then((response) => {
         const products: Product[] = response.data;
         const uniqueProductRefs = new Set<string>();
-        // Ajouter chaque référence de produit à l'ensemble des références uniques
         products.forEach((product: Product) => {
           uniqueProductRefs.add(product.Ref);
         });
   
-        // Filtrer les produits qui ont des modifications
         const filteredProducts = products.filter((product: Product) => product.Modifications && product.Modifications.length > 0);
   
         setProducts(filteredProducts);
@@ -152,17 +189,21 @@ const Update: React.FC = () => {
 
 
   const exportToXLS = useCallback(() => {
-    // Filtrer les produits selon les critères sélectionnés, y compris le filtrage par augmentation de prix
     let filteredProducts = initialProducts.filter(product => {
         const priceValid = parseFloat(product.Price.replace(/\s/g, '').replace(',', '.'));
         const meetsPriceCriteria = (!minPrice || priceValid >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
                                    (!maxPrice || priceValid <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
 
-                                   const meetsStockCriteria = !availabilityFilter || 
-                                   (availabilityFilter === "available" && product.Stock === "En stock") ||
-                                   (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-                                   (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
-                                 
+                                   const meetsStockCriteria = !availabilityFilter ||
+                                   (availabilityFilter === "available" && 
+                                       (product.Stock === "En stock" || product.Stock === "")) ||
+                                   (availabilityFilter === "unavailable" && 
+                                       (product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h")) ||
+                                   (availabilityFilter === "horstock" && 
+                                       (product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || 
+                                        product.Stock === "En arrivage" || product.Stock === "en arrivage" || 
+                                        product.Stock === "en arrvage" || product.Stock === "en arrivge"));
+                               
         const meetsCompanyCriteria = !selectedCompany || selectedCompany === "All" || product.Company === selectedCompany;
         
         const meetsDateCriteria = !dateFilter || filterProductsByDateRange([product]).length > 0;
@@ -226,14 +267,10 @@ const handleMinPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   const value = event.target.value;
   setMinPrice(value);
 
-  // Vérifier si le prix maximum est inférieur au prix minimum
   if (maxPrice && parseFloat(value) > parseFloat(maxPrice)) {
-    // Définir le message d'erreur
     setErrorMessage('Le prix minimum ne peut pas être supérieur au prix maximum.');
   } else {
-    // Filtrer les produits avec les nouvelles valeurs de prix
     filterProducts(value, maxPrice, 'min');
-    // Réinitialiser le message d'erreur
     setErrorMessage('');
   }
 };
@@ -242,14 +279,10 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   const value = event.target.value;
   setMaxPrice(value);
 
-  // Vérifier si le prix minimum est supérieur au prix maximum
   if (minPrice && parseFloat(value) < parseFloat(minPrice)) {
-    // Définir le message d'erreur
     setErrorMessage('Le prix maximum ne peut pas être inférieur au prix minimum.');
   } else {
-    // Filtrer les produits avec les nouvelles valeurs de prix
     filterProducts(minPrice, value, 'max');
-    // Réinitialiser le message d'erreur
     setErrorMessage('');
   }
 };
@@ -282,29 +315,32 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     []
   );
   
-  
-  
- 
-  
-  
   const handleAvailabilityFilterChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const { value } = event.target;
       setAvailabilityFilter(value);
       
-      let filteredProducts = initialProducts; 
+      let filteredProducts = initialProducts;
       if (value === "available") {
-        filteredProducts = initialProducts.filter(product => product.Stock === "En stock");
+        filteredProducts = initialProducts.filter(product => 
+          product.Stock === "En stock" || product.Stock === ""
+        );
       } else if (value === "unavailable") {
-        filteredProducts = initialProducts.filter(product => product.Stock === "Sur commande");
+        filteredProducts = initialProducts.filter(product => 
+          product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h"
+        );
       } else if (value === "horstock") {
-        // Inclure également les produits en rupture de stock et en arrivage
-        filteredProducts = initialProducts.filter(product => product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || product.Stock === "En arrivage");
+        filteredProducts = initialProducts.filter(product => 
+          product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || 
+          product.Stock === "En arrivage" || product.Stock === "en arrivage" || 
+          product.Stock === "en arrvage" || product.Stock === "en arrivge"
+        );
       }
-      setProducts(filteredProducts); 
+      setProducts(filteredProducts);
     },
     [initialProducts]
   );
+  
   
 
   const applyPriceFilter = (filteredProducts: Product[]) => {
@@ -353,12 +389,11 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         ? initialProducts
         : initialProducts.filter(product => product.Company === value);
       
-      // Appliquer les autres filtres sur les produits filtrés par concurrent
       const filteredProductsByOtherFilters = applyOtherFilters(filteredProducts);
       
       setProducts(filteredProductsByOtherFilters);
     },
-    [initialProducts, dateFilter, search, priceFilter, maxPrice, minPrice, availabilityFilter]
+    [initialProducts, search, priceFilter, maxPrice, minPrice, availabilityFilter]
   );
   const applyOtherFilters = (filteredProducts: Product[]) => {
     const filteredByDate = filterProductsByDateRange(filteredProducts);
@@ -370,17 +405,21 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       product.Brand.toLowerCase().includes(search.toLowerCase())
     );
     
-    // Appliquer les autres filtres (prix, disponibilité, tri) sur les produits filtrés par concurrent
     const filteredByOtherFilters = filteredBySearch.filter((product) => {
       const meetsPriceCriteria =
         (!minPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) >= parseFloat(minPrice.replace(/\s/g, '').replace(',', '.'))) &&
         (!maxPrice || parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <= parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
   
-      const meetsStockCriteria = !availabilityFilter || 
-        (availabilityFilter === "available" && product.Stock === "En stock") ||
-        (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-        (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
-      
+        const meetsStockCriteria = !availabilityFilter ||
+        (availabilityFilter === "available" && 
+            (product.Stock === "En stock" || product.Stock === "")) ||
+        (availabilityFilter === "unavailable" && 
+            (product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h")) ||
+        (availabilityFilter === "horstock" && 
+            (product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || 
+             product.Stock === "En arrivage" || product.Stock === "en arrivage" || 
+             product.Stock === "en arrvage" || product.Stock === "en arrivge"));
+    
       const meetsPriceFilter = !priceFilter || priceFilter === 'asc' || priceFilter === 'desc';
   
       const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
@@ -388,7 +427,6 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       return meetsPriceCriteria && meetsStockCriteria && meetsPriceFilter && meetsDateFilter;
     });
   
-    // Appliquer le tri des produits
     const sortedProducts = applyPriceFilter(filteredByOtherFilters);
   
     return sortedProducts;
@@ -407,7 +445,6 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   const handlePriceChangeFilter = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const changeType = event.target.value;
-      // Appliquer les autres filtres sur les produits initiaux
       const filteredProducts = initialProducts.filter((product) => {
         const meetsPriceCriteria =
           (!minPrice ||
@@ -417,11 +454,16 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             parseFloat(product.Price.replace(/\s/g, '').replace(',', '.')) <=
               parseFloat(maxPrice.replace(/\s/g, '').replace(',', '.')));
   
-        const meetsStockCriteria = !availabilityFilter || 
-          (availabilityFilter === "available" && product.Stock === "En stock") ||
-          (availabilityFilter === "unavailable" && product.Stock === "Sur commande") ||
-          (availabilityFilter === "horstock" && (product.Stock === "En arrivage" || product.Stock === "Rupture de stock" || product.Stock === "Hors stock"));
-        
+              const meetsStockCriteria = !availabilityFilter ||
+              (availabilityFilter === "available" && 
+                  (product.Stock === "En stock" || product.Stock === "")) ||
+              (availabilityFilter === "unavailable" && 
+                  (product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h")) ||
+              (availabilityFilter === "horstock" && 
+                  (product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || 
+                   product.Stock === "En arrivage" || product.Stock === "en arrivage" || 
+                   product.Stock === "en arrvage" || product.Stock === "en arrivge"));
+          
         const meetsDateFilter = !dateFilter || dateFilter === 'jour' || dateFilter === 'semaine' || dateFilter === 'mois';
   
         const meetsSearchCriteria = !search || 
@@ -434,7 +476,6 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         return meetsPriceCriteria && meetsStockCriteria && meetsDateFilter && meetsSearchCriteria;
       });
   
-      // Filtrer par le changement de prix sur les produits filtrés par les autres critères
       const filteredProductsByPriceChange = filteredProducts.filter((product) => {
         const priceChange = calculatePriceChange(product);
         return (
@@ -443,52 +484,50 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         );
       });
   
-      // Appliquer le filtrage ascendant ou descendant
       const sortedProductsByPriceChange = applyPriceFilter(
         filteredProductsByPriceChange
       );
   
-      // Filtrer par la date sélectionnée
       const filteredProductsByDate = filterProductsByDateRange(
         sortedProductsByPriceChange
       );
   
-      // Mettre à jour les produits affichés
       setProducts(filteredProductsByDate);
-      // Mettre à jour le type de changement de prix
       setPriceChangeType(changeType);
     },
     [initialProducts, minPrice, maxPrice, availabilityFilter, dateFilter, search]
   );
-  
-  
-  
-  
-  
-  const filteredProductsByAvailability = availabilityFilter
-    ? availabilityFilter === "available"
-      ? products.filter(
-          (product) => product.Stock === "En stock"
-        )
-      : availabilityFilter === "unavailable"
-        ? products.filter(
-            (product) => product.Stock === "Sur commande"
-          )
-        : availabilityFilter === "horstock"
-          ? // Inclure également les produits en rupture de stock et en arrivage
-            products.filter(
-              (product) => product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || product.Stock === "En arrivage"
-            ) : products
-     : products;
 
-       const modifiedProductsCount = products.length;
-       const availableProductsCount = products.filter(product => product.Stock === "En stock").length;
-       const unavailableProductsCount = products.filter(product => product.Stock === "Sur commande").length;
-       const deletedProductsCount = products.filter(product => 
-        product.Stock === "Hors stock" || 
-        product.Stock === "En arrivage" || 
-        product.Stock === "Rupture de stock"
-      ).length;
+  const filteredProductsByAvailability = availabilityFilter
+  ? availabilityFilter === "available"
+    ? products.filter(
+        (product) => product.Stock === "En stock" || product.Stock === ""
+      )
+    : availabilityFilter === "unavailable"
+      ? products.filter(
+          (product) => product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h"
+        )
+      : availabilityFilter === "horstock"
+        ? products.filter(
+            (product) => product.Stock === "Hors stock" || product.Stock === "Rupture de stock" || 
+                         product.Stock === "En arrivage" || product.Stock === "en arrivage" || 
+                         product.Stock === "en arrvage" || product.Stock === "en arrivge"
+          ) 
+        : products
+  : products;
+
+const modifiedProductsCount = products.length;
+const availableProductsCount = products.filter(product => product.Stock === "En stock" || product.Stock === "").length;
+const unavailableProductsCount = products.filter(product => product.Stock === "Sur commande" || product.Stock === "sur comande" || product.Stock === "Sur commande 48h").length;
+const deletedProductsCount = products.filter(product => 
+  product.Stock === "Hors stock" || 
+  product.Stock === "Rupture de stock" || 
+  product.Stock === "En arrivage" || 
+  product.Stock === "en arrivage" || 
+  product.Stock === "en arrvage" || 
+  product.Stock === "en arrivge"
+).length;
+
       
   const filteredProducts = applyPriceFilter(filteredProductsByAvailability);
 
@@ -510,11 +549,10 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     }
   
     return products.filter(product => {
-      // Use optional chaining and provide a default empty array if Modifications is undefined
       return product.Modifications?.some(mod => {
         const modDate = new Date(mod.dateModification);
         return modDate >= startDate && modDate <= currentDate;
-      }) ?? false; // Return false if Modifications is undefined
+      }) ?? false; 
     });
   };
   
@@ -548,24 +586,20 @@ const [priceChangeSortOrder, setPriceChangeSortOrder] = useState<'asc' | 'desc'>
 
 
 const handlePriceChangeSort = () => {
-  // Inverser l'ordre de tri actuel
   const newSortOrder = priceChangeSortOrder === 'asc' ? 'desc' : 'asc';
   setPriceChangeSortOrder(newSortOrder);
 
-  // Tri des produits selon l'ordre de tri actuel
   const sortedProducts = filteredProducts.slice().sort((a, b) => {
     const priceChangeA = calculatePriceChange(a);
     const priceChangeB = calculatePriceChange(b);
 
-    // Comparer les variations de prix en fonction de l'ordre de tri actuel
     if (newSortOrder === 'asc') {
-      return priceChangeA - priceChangeB; // Tri croissant
+      return priceChangeA - priceChangeB; 
     } else {
-      return priceChangeB - priceChangeA; // Tri décroissant
+      return priceChangeB - priceChangeA; 
     }
   });
 
-  // Mettre à jour l'état products avec les produits triés
   setProducts(sortedProducts);
 };
 
@@ -622,7 +656,7 @@ const handlePriceChangeSort = () => {
           />
         </div>
         <div className={styles.filter_container}>
-          <div className={styles.filter_group}>
+        <div className={styles.filter_group}>       
           <select
               value={selectedCompany || "All"}
               onChange={handleCompanyChange}
@@ -637,9 +671,9 @@ const handlePriceChangeSort = () => {
           </div>
           <div className={styles.filter_group}>
             <select value={dateFilter || ""} onChange={(e) => setDateFilter(e.target.value)}>
-             <option value="jour">aujourd'hui</option>
-             <option value="semaine"> cette semaine</option>
-             <option value="mois">ce mois</option>
+             <option value="jour">Aujourd'hui</option>
+             <option value="semaine"> "Les 7 derniers jours</option>
+             <option value="mois">Ce mois</option>
            </select>
          </div>
           <div className={styles.filter_group}>

@@ -1,4 +1,3 @@
-/* SignUp.css */
 
 .sign-up-form {
     max-width: 400px;
@@ -13,7 +12,6 @@
   }
  
 
-/* Style du titre */
 .title {
     text-align: center;
     font-family: Georgia, serif;
@@ -23,7 +21,6 @@
     font-weight: bold;
   }
  
-/* Style de l'icône home */
 .home-icon {
     width: 50px; 
     height: 25px;
@@ -37,7 +34,7 @@
 }
 
 .error-icon {
-    margin-right: 5px; /* Ajustez la marge selon vos préférences */
+    margin-right: 5px; 
 }
 
   .icon {
@@ -56,7 +53,6 @@
     box-sizing: border-box;
     font-family: Georgia, serif;
   }
-  /* CSS pour la boîte de dialogue */
 .dialog {
   position: fixed;
   top: 50%;

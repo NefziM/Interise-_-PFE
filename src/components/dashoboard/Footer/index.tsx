@@ -7,7 +7,7 @@ export const Footer = () => {
   return (
     <div className={styles.dashboard_footer}>
       <span>
-        ©{year} Scrapper developed by <a>TDISCOUNT</a>
+        ©{year}  developed by <a>iTrend Technology </a>
       </span>
     </div>
   );

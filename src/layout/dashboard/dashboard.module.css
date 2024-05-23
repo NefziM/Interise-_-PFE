@@ -365,12 +365,8 @@ select {
     text-align: center;
     height: 450px;
     width: 200px;
-    transition: width 0.3s, height 0.3s;
 }
-.product_box:hover {
-    width: 210px; /* Augmenter la largeur */
-    height: 460px; /* Augmenter la hauteur */
-  }
+
 
 .product_box img {
     width: 80%;
@@ -459,8 +455,8 @@ select {
 
 .notification_counter {
     position: absolute;
-    top: -10px; /* Ajustez en fonction de la position de l'icône */
-    right: -10px; /* Ajustez en fonction de la position de l'icône */
+    top: -10px; 
+    right: -10px; 
     background-color: red;
     color: white;
     font-weight: bold;
@@ -619,6 +615,8 @@ select {
     height: 40px;   
     margin-top: -25px;
     border: 0.08rem solid rgb(7, 19, 37);
+    font-family: Georgia, serif;
+
 
 }
 .exportButton:hover{background-color:  rgb(207, 199, 199); }
