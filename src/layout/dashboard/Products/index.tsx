@@ -657,12 +657,8 @@ const handleMaxPriceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   
 
    return (
-    <div
-      className={`${styles.dashboard_content} products_page product-page-inputs`}
-    >
-      
+    <div className={`${styles.dashboard_content} products_page product-page-inputs`}>
       <div className={styles.dashboard_content_container}>
-        
         <div className={styles.dashboard_content_header}>
           <Input
             type="text"

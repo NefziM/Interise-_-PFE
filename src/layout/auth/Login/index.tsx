@@ -47,7 +47,7 @@ export const Login = () => {
 
     return (
       <div className={`${styles.login_container} login-page-inputs`}>
-        <img src="/images/itrend.png" className={styles.logo} alt="Logo" />
+        <img src="/images/logoo.png" className={styles.logo} alt="Logo" />
         <div className={styles.login_form}>
           <h1>Connexion</h1>
           <form onSubmit={handleSubmit}>

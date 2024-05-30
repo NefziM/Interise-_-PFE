@@ -1,17 +1,13 @@
-import React, { useState, useEffect,useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from 'axios';
-import Chart from 'chart.js/auto'; 
+import { Chart, ChartType } from 'chart.js/auto';
 import { DashboardComponents } from "@components";
 import { ROUTES } from "@utils";
 import styles from "../dashboard.module.css";
-import './dashboard.css'; 
+import './dashboard.css';
 import jsPDF from 'jspdf';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faImage, faFilePdf } from '@fortawesome/free-solid-svg-icons';
-import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
-import { ChartConfiguration } from 'chart.js/auto';
-
-
+import { faImage, faFilePdf, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 
 interface Product {
   Ref: string;
@@ -38,14 +34,13 @@ interface Product {
 interface Modification {
   dateModification: Date;
   ancienPrix: string;
-  nouveauPrix:string;
+  nouveauPrix: string;
 }
 
 const getCurrentDate = () => {
   const today = new Date();
-  return today.toLocaleDateString('fr-FR'); 
+  return today.toLocaleDateString('fr-FR');
 };
-
 
 const downloadChartAsImage = (chartId: string, imageFormat: 'png' | 'jpeg' = 'png') => {
   const canvas = document.getElementById(chartId) as HTMLCanvasElement;
@@ -71,6 +66,8 @@ const downloadChartAsPDF = (chartId: string, title: string) => {
   }
 };
 
+
+
 export const Dashboard = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [newProductsCount, setNewProductsCount] = useState(0);
@@ -79,15 +76,19 @@ export const Dashboard = () => {
   const [priceIncreaseCount, setPriceIncreaseCount] = useState(0);
   const [priceDecreaseCount, setPriceDecreaseCount] = useState(0);
   const [showDownloadButtons, setShowDownloadButtons] = useState(true);
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [allCompanies, setAllCompanies] = useState<string[]>([]);
-  
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [page, setPage] = useState(1); // Ajouté pour la pagination
+  const [pageSize, setPageSize] = useState(10); // Ajouté pour la pagination
+  const [isFiltered, setIsFiltered] = useState(false);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
 
-  
+
+
   useEffect(() => {
     fetchProducts();
-  }, [selectedCompany]);
+  }, [selectedCompany]); 
   
   const handleCompanyChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -96,193 +97,213 @@ export const Dashboard = () => {
     },
     []
   );
+  
+  
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/products');
-      const allProducts: Product[] = response.data;
-      const filteredProducts = selectedCompany ? allProducts.filter(product => product.Company === selectedCompany) : allProducts;
+      const response = await axios.get('http://localhost:5000/api/products', {
+        params: {
+          page,
+          pageSize,
+        },
+      });
+      const data: Product[] = response.data;
+  
+      const filteredProducts = selectedCompany ? data.filter(product => product.Company === selectedCompany) : data;
       setFilteredProducts(filteredProducts);
   
-      const allUniqueCompanies = Array.from(new Set(allProducts.map(product => product.Company)));
+      const allUniqueCompanies = Array.from(new Set(data.map(product => product.Company)));
       setAllCompanies(allUniqueCompanies);
-        const today = new Date().setHours(0, 0, 0, 0);
-        const uniqueProductRefs = new Set<string>();
-        let newProductsSet = new Set<string>();
-        let modifiedProductsSet = new Set<string>();
-        let priceIncreases = 0;
-        let priceDecreases = 0;
-
-        filteredProducts.forEach((product: Product) => {
-            uniqueProductRefs.add(product.Ref);
-
-            if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today) {
-                newProductsSet.add(product.Ref);
+      const today = new Date().setHours(0, 0, 0, 0);
+      const uniqueProductRefs = new Set<string>();
+      let newProductsSet = new Set<string>();
+      let modifiedProductsSet = new Set<string>();
+      let priceIncreases = 0;
+      let priceDecreases = 0;
+  
+      filteredProducts.forEach((product: Product) => {
+        uniqueProductRefs.add(product.Ref);
+  
+        if (product.DateAjout && new Date(product.DateAjout).setHours(0, 0, 0, 0) === today) {
+          newProductsSet.add(product.Ref);
+        }
+  
+        product.Modifications?.forEach((modification) => {
+          const modDate = new Date(modification.dateModification).setHours(0, 0, 0, 0);
+          if (modDate === today) {
+            modifiedProductsSet.add(product.Ref);
+            let nextPrice = parseFloat(product.Price.replace(/[^\d.,]/g, "").replace(',', '.'));
+            const currentPrice = parseFloat(modification.ancienPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
+            if (currentPrice > nextPrice) {
+              priceDecreases++;
+            } else if (currentPrice < nextPrice) {
+              priceIncreases++;
             }
-
-            
-
-            product.Modifications?.forEach((modification) => {
-                const modDate = new Date(modification.dateModification).setHours(0, 0, 0, 0);
-                if (modDate === today) {
-                    modifiedProductsSet.add(product.Ref);
-                    let nextPrice = parseFloat(product.Price.replace(/[^\d.,]/g, "").replace(',', '.'));
-                    const currentPrice = parseFloat(modification.ancienPrix.replace(/[^\d.,]/g, "").replace(',', '.'));
-                    if (currentPrice > nextPrice) {
-                        priceDecreases++;
-                    } else if (currentPrice < nextPrice) {
-                        priceIncreases++;
-                    }
-                }
-            });
-            
+          }
         });
-
-        let allModificationDates: Date[] = filteredProducts.flatMap(product => 
-            product.Modifications?.map(modification => new Date(modification.dateModification)) ?? []
-        );
-        const uniqueDates = Array.from(new Set(allModificationDates.map(date => date.toISOString().slice(0, 10))))
+      });
+  
+      let allModificationDates: Date[] = filteredProducts.flatMap(product =>
+        product.Modifications?.map(modification => new Date(modification.dateModification)) ?? []
+      );
+      const uniqueDates = Array.from(new Set(allModificationDates.map(date => date.toISOString().slice(0, 10))))
         .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime())
         .slice(0, 7)
         .map((date: string) => new Date(date));
-
-        setTotalProducts(filteredProducts.length);
-        setNewProductsCount(newProductsSet.size);
-        setModifiedProductsCount(modifiedProductsSet.size);
-        setPriceIncreaseCount(priceIncreases);
-        setPriceDecreaseCount(priceDecreases);
-        setInitialProducts(filteredProducts);
-
-   
-   
-        drawAvailabilityChart(filteredProducts);
-        drawAvailabilityByCategoryChart(filteredProducts);
-        drawMostModifiedProductsChart(filteredProducts);
-        drawCategoryDistributionChart(filteredProducts);
-        drawPriceChangesChart(filteredProducts, uniqueDates);
-        drawCombinedChangesAndNewProductsChart(filteredProducts, uniqueDates);
-        drawTopBrandsByCategoryChart(filteredProducts);
   
+     // Mettre à jour les états avec les statistiques
+setTotalProducts(filteredProducts.length);
+setNewProductsCount(newProductsSet.size);
+setModifiedProductsCount(modifiedProductsSet.size);
+setPriceIncreaseCount(priceIncreases);
+setPriceDecreaseCount(priceDecreases);
+setInitialProducts(filteredProducts);
+setAllProducts(filteredProducts);
+
+const productsForCharts = selectedCompany ? filteredProducts : data;
+// Générer les graphiques en fonction des produits sélectionnés
+drawAvailabilityChart(productsForCharts);
+drawAvailabilityByCategoryChart(productsForCharts);
+drawMostModifiedProductsChart(productsForCharts);
+drawCategoryDistributionChart(productsForCharts,selectedCompany);
+drawPriceChangesChart(productsForCharts, uniqueDates);
+drawCombinedChangesAndNewProductsChart(productsForCharts, uniqueDates);
+drawTopBrandsByCategoryChart(productsForCharts);
+
+      
     } catch (error) {
-        console.error('Error fetching products:', error);
+      console.error('Error fetching products:', error);
     }
-};
-
-
+  }, [selectedCompany,page, pageSize]);
   
 
-  const drawAvailabilityByCategoryChart = (products: Product[]) => {
-    const availabilityByCategory: Record<string, { inStock: number; outOfStock: number; onOrder: number; }> = {};
+   let topBrandsByCategoryChartInstance: Chart | null = null;
+   let availabilityChartInstances: Chart<"pie", number[], string>[] = [];
+
+const drawAvailabilityByCategoryChart = useCallback((products: Product[]) => {
+  const inStockCanvas = document.getElementById('inStockChart') as HTMLCanvasElement;
+  const outOfStockCanvas = document.getElementById('outOfStockChart') as HTMLCanvasElement;
+  const onOrderCanvas = document.getElementById('onOrderChart') as HTMLCanvasElement;
+
+  // Détruire les instances existantes si elles sont présentes
+  availabilityChartInstances.forEach(instance => instance.destroy());
+
+  // Filtrer les produits en fonction du concurrent sélectionné
+  const filteredProducts = selectedCompany ? products.filter(product => product.Company === selectedCompany) : products;
+
+  // Agréger les données par catégorie
+  const availabilityByCategory: Record<string, { inStock: number; outOfStock: number; onOrder: number; }> = {};
+  filteredProducts.forEach(product => {
+    const category = product.Category;
+    if (!availabilityByCategory[category]) {
+      availabilityByCategory[category] = { inStock: 0, outOfStock: 0, onOrder: 0 };
+    }
+    switch (product.Stock.toLowerCase()) {
+      case "en stock":
+      case "":
+        availabilityByCategory[category].inStock++;
+        break;
+      case "hors stock":
+      case "rupture de stock":
+      case "en arrivage":
+      case "en arrvage":
+      case "en arrivge":
+        availabilityByCategory[category].outOfStock++;
+        break;
+      case "sur commande":
+      case "sur commande 48h":
+      case "sur comande":
+        availabilityByCategory[category].onOrder++;
+        break;
+    }
+  });
+
+  const categories = Object.keys(availabilityByCategory);
+  const inStockData = categories.map(cat => availabilityByCategory[cat].inStock);
+  const outOfStockData = categories.map(cat => availabilityByCategory[cat].outOfStock);
+  const onOrderData = categories.map(cat => availabilityByCategory[cat].onOrder);
+
+  if (inStockCanvas && outOfStockCanvas && onOrderCanvas) {
+    const inStockCtx = inStockCanvas.getContext('2d');
+    const outOfStockCtx = outOfStockCanvas.getContext('2d');
+    const onOrderCtx = onOrderCanvas.getContext('2d');
+
+    if (inStockCtx && outOfStockCtx && onOrderCtx) {
+      const chartType: ChartType = "pie";
+
+      availabilityChartInstances.push(new Chart<"pie", number[], string>(inStockCtx, {
+        type: chartType,
+        data: {
+          labels: categories,
+          datasets: [{
+            data: inStockData,
+            backgroundColor: ['#6b80bd', '#5887ba', '#143d8f', '#92bae8', '#b3daff', '#c1cad7', '#8da7be', '#48a6d9', '#969090']
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Nombre des produits en stock par catégorie'
+            }
+          }
+        }
+      }));
+
+      availabilityChartInstances.push(new Chart<"pie", number[], string>(outOfStockCtx, {
+        type: chartType,
+        data: {
+          labels: categories,
+          datasets: [{
+            data: outOfStockData,
+            backgroundColor: ['#6b80bd', '#5887ba', '#143d8f', '#92bae8', '#b3daff', '#c1cad7', '#8da7be', '#48a6d9', '#969090']
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Nombre des produits hors stock par catégorie'
+            }
+          }
+        }
+      }));
+
+      availabilityChartInstances.push(new Chart<"pie", number[], string>(onOrderCtx, {
+        type: chartType,
+        data: {
+          labels: categories,
+          datasets: [{
+            data: onOrderData,
+            backgroundColor: ['#6b80bd', '#5887ba', '#143d8f', '#92bae8', '#b3daff', '#c1cad7', '#8da7be', '#48a6d9', '#969090']
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Nombre des produits sur commande par catégorie'
+            }
+          }
+        }
+      }));
+    }
+  }
+}, [selectedCompany]);
+   
+   const drawTopBrandsByCategoryChart = useCallback((products: Product[]) => {
+    if (topBrandsByCategoryChartInstance) {
+      topBrandsByCategoryChartInstance.destroy();
+    }
   
-    products.forEach(product => {
-      if (!availabilityByCategory[product.Category]) {
-        availabilityByCategory[product.Category] = { inStock: 0, outOfStock: 0, onOrder: 0 };
-      }
-      const stockStatus = product.Stock.toLowerCase();
-      switch (stockStatus) {
-        case "en stock":
-        case "":
-          availabilityByCategory[product.Category].inStock++;
-          break;
-        case "hors stock":
-        case "rupture de stock":
-        case "en arrivage":
-        case "en arrvage" :
-        case "en arrivge" :
-          availabilityByCategory[product.Category].outOfStock++;
-          break;
-        case "sur commande":
-        case "sur commande 48h":
-        case "sur comande":
-          availabilityByCategory[product.Category].onOrder++;
-          break;
-      }
     
-    });
+    const filteredProducts = selectedCompany ? products.filter(product => product.Company === selectedCompany) : products;
+    console.log("Produits filtrés par la société sélectionnée :", products); 
   
-  
-    const categories = Object.keys(availabilityByCategory);
-    const inStockData = categories.map(cat => availabilityByCategory[cat].inStock);
-    const outOfStockData = categories.map(cat => availabilityByCategory[cat].outOfStock);
-    const onOrderData = categories.map(cat => availabilityByCategory[cat].onOrder);
-  
-    const inStockCanvas = document.getElementById('inStockChart') as HTMLCanvasElement;
-    const outOfStockCanvas = document.getElementById('outOfStockChart') as HTMLCanvasElement;
-    const onOrderCanvas = document.getElementById('onOrderChart') as HTMLCanvasElement;
-  
-    if (inStockCanvas && outOfStockCanvas && onOrderCanvas) {
-      const inStockCtx = inStockCanvas.getContext('2d');
-      const outOfStockCtx = outOfStockCanvas.getContext('2d');
-      const onOrderCtx = onOrderCanvas.getContext('2d');
-  
-      if (inStockCtx && outOfStockCtx && onOrderCtx) {
-        new Chart(inStockCtx, {
-          type: 'doughnut',
-          data: {
-            labels: categories,
-            datasets: [{
-              data: inStockData,
-              backgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090']
-
-            }]
-          },
-          options: {
-            plugins: {
-              title: {
-                display: true,
-                text: 'Nombre des produits en stock par catégorie'
-              }
-            }
-          }
-        });
-  
-        new Chart(outOfStockCtx, {
-          type: 'doughnut',
-          data: {
-            labels: categories,
-            datasets: [{
-              data: outOfStockData,
-              backgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090']
-
-            }]
-          },
-          options: {
-            plugins: {
-              title: {
-                display: true,
-                text: 'Nombre des produits hors stock par catégorie'
-              }
-            }
-          }
-        });
-  
-        new Chart(onOrderCtx, {
-          type: 'doughnut',
-          data: {
-            labels: categories,
-            datasets: [{
-              data: onOrderData,
-              backgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090']
-
-            }]
-          },
-          options: {
-            plugins: {
-              title: {
-                display: true,
-                text: ' Nombre des produits sur commande par catégorie'
-              }
-            }
-          }
-        });
-      }
-    }
-  };
-  
-  const drawTopBrandsByCategoryChart = (products: Product[]) => {
     const topBrandsByCategory: Record<string, Record<string, number>> = {};
   
-    products.forEach(product => {
+    filteredProducts.forEach(product => {
       const { Category, Brand } = product;
       if (!topBrandsByCategory[Category]) {
         topBrandsByCategory[Category] = {};
@@ -305,14 +326,14 @@ export const Dashboard = () => {
       allBrands.push(...top5BrandsByCategory[category]);
     });
     const uniqueBrands = Array.from(new Set(allBrands));
-    
+  
     const colors = ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090'];
-    
+  
     const brandColors: Record<string, string> = {};
     uniqueBrands.forEach((brand, index) => {
       brandColors[brand] = colors[index % colors.length];
     });
-    
+  
     const datasets = uniqueBrands.map(brand => {
       const data = categories.map(category => top5BrandsByCategory[category].includes(brand) ? topBrandsByCategory[category][brand] : 0);
       return {
@@ -321,9 +342,10 @@ export const Dashboard = () => {
         backgroundColor: brandColors[brand],
       };
     });
+  
     const ctx = document.getElementById('topBrandsByCategoryChart') as HTMLCanvasElement;
     if (ctx) {
-      new Chart(ctx, {
+      topBrandsByCategoryChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: categories,
@@ -369,11 +391,14 @@ export const Dashboard = () => {
         },
       });
     }
-    
-  };
+  }, []); 
+  
   
 
-const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
+  
+
+
+const drawPriceChangesChart = useCallback((products: Product[], recentDates: Date[]) => {
   const priceIncreasesPerDay: Record<string, number> = {};
   const priceDecreasesPerDay: Record<string, number> = {};
 
@@ -475,11 +500,10 @@ const drawPriceChangesChart = (products: Product[], recentDates: Date[]) => {
       }
     });
   }
-};
+},[]);
 
 
-
-const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates: Date[]) => {
+const drawCombinedChangesAndNewProductsChart = useCallback((products: Product[], recentDates: Date[]) => {
   const modificationsAndNewProductsPerDay: Record<string, { modifications: number; newProducts: number }> = {};
 
   recentDates.forEach(date => {
@@ -544,174 +568,197 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
       }
     });
   }
-};
-
+},[]);
   
-  
-    const drawAvailabilityChart = (products: Product[]) => {
-      const competitorsStats: Record<string, { inStock: number, outOfStock: number, onOrder: number }> = {};
-      products.forEach(product => {
-        if (!competitorsStats[product.Company]) {
-          competitorsStats[product.Company] = { inStock: 0, outOfStock: 0, onOrder: 0 };
-        }
-        if (product.Stock === "En stock" || product.Stock === "") {
-          competitorsStats[product.Company].inStock++;
-        } else if (product.Stock === "Sur commande" || product.Stock ==="sur comande" || product.Stock === "sur commande 48h") {
-          competitorsStats[product.Company].onOrder++;
-        } else {
-          competitorsStats[product.Company].outOfStock++;
-        }
-      });
-  
-      const ctx = document.getElementById('competitorChart') as HTMLCanvasElement;
-      if (ctx) {
-        new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: Object.keys(competitorsStats),
-            datasets: [{
-              label: 'En stock',
-              data: Object.values(competitorsStats).map(stats => stats.inStock),
-              backgroundColor: '#143d8f'
+let AvailabilityChartInstance: Chart | null = null;
 
 
-            }, {
-              label: 'Hors stock',
-              data: Object.values(competitorsStats).map(stats => stats.outOfStock),
-              backgroundColor: '#48a6d9'
-            }, {
-              label: 'Sur commande',
-              data: Object.values(competitorsStats).map(stats => stats.onOrder),
-              backgroundColor: '#6b80bd'
-            }]
-          },
-          options: {
-            animation: {
-              duration: 2000, 
-              easing: 'easeInOutBounce' 
-            },
-            scales: {
-              y: {
-                beginAtZero: true
-              }
-            },
-            plugins: {
-              legend: {
-                position: 'top',
-              },
-              title: {
-                display: true,
-                text: 'Disponibilité des Produits par concurrent'
-              }
-            }
+const drawAvailabilityChart = useCallback((products: Product[]) => {
+  if (AvailabilityChartInstance) {
+    AvailabilityChartInstance.destroy();
+  }
+
+  const competitorsStats: Record<string, { inStock: number, outOfStock: number, onOrder: number }> = {};
+  products.forEach(product => {
+    if (!competitorsStats[product.Company]) {
+      competitorsStats[product.Company] = { inStock: 0, outOfStock: 0, onOrder: 0 };
+    }
+    if (product.Stock === "En stock" || product.Stock === "") {
+      competitorsStats[product.Company].inStock++;
+    } else if (product.Stock === "Sur commande" || product.Stock ==="sur comande" || product.Stock === "sur commande 48h") {
+      competitorsStats[product.Company].onOrder++;
+    } else {
+      competitorsStats[product.Company].outOfStock++;
+    }
+  });
+
+  const ctx = document.getElementById('competitorChart') as HTMLCanvasElement;
+  if (ctx) {
+    AvailabilityChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(competitorsStats),
+        datasets: [{
+          label: 'En stock',
+          data: Object.values(competitorsStats).map(stats => stats.inStock),
+          backgroundColor: '#143d8f'
+        }, {
+          label: 'Hors stock',
+          data: Object.values(competitorsStats).map(stats => stats.outOfStock),
+          backgroundColor: '#48a6d9'
+        }, {
+          label: 'Sur commande',
+          data: Object.values(competitorsStats).map(stats => stats.onOrder),
+          backgroundColor: '#6b80bd'
+        }]
+      },
+      options: {
+        animation: {
+          duration: 2000, 
+          easing: 'easeInOutBounce' 
+        },
+        scales: {
+          y: {
+            beginAtZero: true
           }
-        });
-        
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          title: {
+            display: true,
+            text: 'Disponibilité des Produits par concurrent'
+          }
+        }
       }
-    };
-  
+    });
+  }
+},[]);
+
+
     const formatDate = (date: Date | string): string => {
       return new Date(date).toLocaleDateString('fr-FR', {
           year: 'numeric', month: 'long', day: 'numeric'
       });
   };
   
-    
-  
-   
-  
-    const drawCategoryDistributionChart = (products: Product[]) => {
-      const categoryCounts = products.reduce((acc: Record<string, number>, product) => {
-        acc[product.Category] = (acc[product.Category] || 0) + 1;
-        return acc;
-      }, {});
-  
-      const ctx = document.getElementById('categoryChart') as HTMLCanvasElement | null;
-      if (ctx) {
+  const drawCategoryDistributionChart = useCallback((products: Product[], selectedCompany: string | null) => {
+    // Vérifier si un concurrent est sélectionné
+    if (selectedCompany) {
+        // Un concurrent est sélectionné, filtrer les produits par le concurrent sélectionné
+        const filteredProducts = products.filter(product => product.Company === selectedCompany);
+
+        // Calculer la distribution des catégories pour le concurrent sélectionné
+        const categoryCounts = filteredProducts.reduce((acc: Record<string, number>, product) => {
+            acc[product.Category] = (acc[product.Category] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Dessiner le graphique avec les données du concurrent sélectionné
+        drawChart(categoryCounts);
+    } else {
+        // Aucun concurrent n'est sélectionné, calculer la distribution de catégories pour tous les produits
+        const categoryCounts = products.reduce((acc: Record<string, number>, product) => {
+            acc[product.Category] = (acc[product.Category] || 0) + 1;
+            return acc;
+        }, {});
+
+        // Dessiner le graphique avec les données de tous les produits
+        drawChart(categoryCounts);
+    }
+}, [selectedCompany]);
+
+// Fonction pour dessiner le graphique
+const drawChart = useCallback((categoryCounts: Record<string, number>) => {
+    const ctx = document.getElementById('categoryChart') as HTMLCanvasElement | null;
+    if (ctx) {
         const chartContext = ctx.getContext('2d');
         if (chartContext) {
-          new Chart(chartContext, {
-            type: 'pie',
-            data: {
-              labels: Object.keys(categoryCounts),
-              datasets: [{
-                data: Object.values(categoryCounts),
-                backgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090'],
-                hoverBackgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090']
-
-
-              }]
-            },
-            options: {
-              animation: {
-                duration: 2000, 
-                easing: 'easeInOutBounce' 
-              },
-              responsive: true,
-              plugins: {
-                legend: {
-                  position: 'top',
+            new Chart(chartContext, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(categoryCounts),
+                    datasets: [{
+                        data: Object.values(categoryCounts),
+                        backgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090'],
+                        hoverBackgroundColor: ['#6b80bd','#5887ba','#143d8f','#92bae8','#b3daff','#c1cad7','#8da7be','#48a6d9','#969090']
+                    }]
                 },
-                title: {
-                  display: true,
-                  text: 'Distribution des Produits Par Catégorie'
+                options: {
+                    animation: {
+                        duration: 2000, 
+                        easing: 'easeInOutBounce' 
+                    },
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Distribution des Produits Par Catégorie'
+                        }
+                    }
                 }
-              }
-            }
-          });
+            });
         }
-      }
-    };
-  
+    }
+},[selectedCompany]);
    
-  
-   
-    const drawMostModifiedProductsChart = (products: Product[]) => {
-      const productsWithMostModifications = products
-        .filter(product => product.Modifications && product.Modifications.length > 0)
-        .sort((a, b) => b.Modifications!.length - a.Modifications!.length)
-        .slice(0, 5);
-  
-      const productLabels = productsWithMostModifications.map(product => product.Ref);
-      const modificationCounts = productsWithMostModifications.map(product => product.Modifications!.length);
-  
-      const ctx = document.getElementById('mostModifiedProductsChart') as HTMLCanvasElement;
-      if (ctx) {
-        new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: productLabels,
-            datasets: [{
-              label: 'Nombre modifications ',
-              data: modificationCounts,
-              backgroundColor: Array(productLabels.length).fill('#13367E')
-            }]
-          },
-          options: {
-            animation: {
-              duration: 2000, 
-              easing: 'easeInOutBounce'
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  stepSize: 1 
-                }
-              }},
-            plugins: {
-              legend: {
-                display: true
-              },
-              title: {
-                display: true,
-                text: 'Top 5 des Produits avec le Plus de Modifications'
-              }
+let mostModifiedProductsChartInstance: Chart | null = null;
+const drawMostModifiedProductsChart = useCallback((products: Product[]) => {
+  // Vérifiez si une instance précédente existe et détruisez-la
+  if (mostModifiedProductsChartInstance) {
+    mostModifiedProductsChartInstance.destroy();
+  }
+
+  const productsWithMostModifications = products
+    .filter(product => product.Modifications && product.Modifications.length > 0)
+    .sort((a, b) => b.Modifications!.length - a.Modifications!.length)
+    .slice(0, 5);
+
+  const productLabels = productsWithMostModifications.map(product => product.Ref);
+  const modificationCounts = productsWithMostModifications.map(product => product.Modifications!.length);
+
+  const ctx = document.getElementById('mostModifiedProductsChart') as HTMLCanvasElement;
+  if (ctx) {
+    mostModifiedProductsChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: productLabels,
+        datasets: [{
+          label: 'Nombre modifications ',
+          data: modificationCounts,
+          backgroundColor: Array(productLabels.length).fill('#13367E')
+        }]
+      },
+      options: {
+        animation: {
+          duration: 2000,
+          easing: 'easeInOutBounce'
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1
             }
           }
-        });
+        },
+        plugins: {
+          legend: {
+            display: true
+          },
+          title: {
+            display: true,
+            text: 'Top 5 des Produits avec le Plus de Modifications'
+          }
+        }
       }
-    };
+    });
+  }
+}, [selectedCompany]);
 
     const availableProductsCount = initialProducts.filter(product => ( product.Stock.toLowerCase() === "en stock" || product.Stock === "" )
       && 
@@ -744,18 +791,14 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
       return validOutOfStockStatuses.has(stockStatus) && 
              (!selectedCompany || product.Company === selectedCompany);
     }).length;
-  
-    
-    const companyOptions = Array.from(new Set(initialProducts.map(p => p.Company)));
+
+
+
 
     return (
       
       <div className={styles.dashboard_content}>
-        
         <div className={styles.dashboard_content_container}>
-          
-      
- 
           <div className={styles.dashboard_cards}>
             <DashboardComponents.StatCard
               title="Tous les Produits"
@@ -792,23 +835,22 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
               value={unavailableProductsCount}
               icon="/icons/product.svg"
             />
- 
-</div>       
-<div>
-        <select 
-          className="select_company"
-          value={selectedCompany || "All"}
-          onChange={handleCompanyChange}
-        >
-          <option value="All" style={{color:'gray'}}>Filtrer par concurrent</option>
-          {allCompanies.map((company: string) => (
-            <option key={company} value={company}>
-              {company}
-            </option>
-          ))}
-        </select>
+    </div>  
+           
+    <div>
+      <select 
+        className="select_company"
+        value={selectedCompany || "All"}
+        onChange={handleCompanyChange}
+      >
+        <option value="All" style={{color:'gray'}}>Filtrer par concurrent</option>
+        {allCompanies.map((company: string) => (
+          <option key={company} value={company}>
+            {company}
+          </option>
+        ))}
+      </select>
       </div>
-
 
 <div className="row">
            <div className="graph-container">
@@ -835,8 +877,6 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
         </div>
       </div>
 
-
-  
       <div className="graph-container">
         <div className="canvas-wrapper">
           <canvas id="mostModifiedProductsChart" width="700" height="500"></canvas>
@@ -860,14 +900,6 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
           )}
         </div>
       </div>
-
-
-
-
-
-      
-  
-  
 
   <div className="graph-container" >
         <div className="canvas-wrapper">
@@ -1091,6 +1123,6 @@ const drawCombinedChangesAndNewProductsChart = (products: Product[], recentDates
     );
   };
 
-
+  export default Dashboard;
       
   
